@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>银河系模拟 - Galaxy Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #000;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        #left-panel,
+        #right-panel {
+            pointer-events: auto;
+        }
+
+        .control-panel {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            min-width: 280px;
+            max-width: 320px;
+            backdrop-filter: blur(10px);
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+        }
+
+        .control-panel h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        #controls h3 {
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .control-group input[type="color"] {
+            width: 100%;
+            height: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            background: transparent;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+            margin-bottom: 5px;
+        }
+
+        .control-group .value {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-left: 5px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        button.active {
+            background: rgba(100, 150, 255, 0.3);
+            border-color: rgba(100, 150, 255, 0.5);
+        }
+
+        .curve-editor {
+            width: 100%;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            margin-top: 10px;
+            position: relative;
+            cursor: crosshair;
+        }
+
+        .curve-editor canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .control-point {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #64aaff;
+            border: 2px solid white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            cursor: move;
+        }
+
+        .control-point:hover {
+            background: #88ccff;
+            transform: translate(-50%, -50%) scale(1.2);
+        }
+
+        #info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div id="controls">
+        <!-- 左侧面板：基础参数 -->
+        <div class="control-panel" id="left-panel">
+            <h3>基础参数</h3>
+        
+        <div class="control-group">
+            <label>
+                旋转速度
+                <span class="value" id="rotation-speed-value">1.0</span>
+            </label>
+            <input type="range" id="rotation-speed" min="0" max="3" step="0.1" value="1.0">
+        </div>
+        
+        <div class="control-group">
+            <label>
+                粒子数量
+                <span class="value" id="particle-count-value">50000</span>
+            </label>
+            <input type="range" id="particle-count" min="10000" max="100000" step="5000" value="50000">
+        </div>
+        
+        <div class="control-group">
+            <label>
+                粒子大小
+                <span class="value" id="particle-size-value">4.0</span>
+            </label>
+            <input type="range" id="particle-size" min="0.01" max="10.0" step="0.01" value="4.0">
+        </div>
+        
+        <div class="control-group">
+            <label>
+                发光强度
+                <span class="value" id="glow-intensity-value">8.0</span>
+            </label>
+            <input type="range" id="glow-intensity" min="0" max="50" step="0.1" value="8.0">
+        </div>
+        
+        <div class="control-group">
+            <label>
+                光晕大小
+                <span class="value" id="halo-size-value">0.6</span>
+            </label>
+            <input type="range" id="halo-size" min="0.1" max="1.0" step="0.05" value="0.6">
+        </div>
+        
+        <div class="control-group">
+            <label>
+                星系半径
+                <span class="value" id="galaxy-radius-value">6.5</span>
+            </label>
+            <input type="range" id="galaxy-radius" min="2" max="10" step="0.5" value="6.5">
+        </div>
+        
+        <div class="control-group">
+            <label>
+                随机性
+                <span class="value" id="randomness-value">0.3</span>
+            </label>
+            <input type="range" id="randomness" min="0" max="1" step="0.05" value="0.3">
+        </div>
+        
+            <div class="control-group">
+                <label>
+                    中心颜色
+                    <input type="color" id="inside-color" value="#ffaa44">
+                </label>
+            </div>
+            
+            <div class="control-group">
+                <label>
+                    边缘颜色
+                    <input type="color" id="outside-color" value="#4488ff">
+                </label>
+            </div>
+            
+            <div class="control-group">
+                <label>
+                    粘滞效果
+                    <span class="value" id="viscosity-value">0.0</span>
+                </label>
+                <input type="range" id="viscosity" min="0" max="1" step="0.05" value="0.0">
+                <small style="font-size: 10px; color: #888;">旋臂区域速度减慢，维持稳定</small>
+            </div>
+            
+            <div class="control-group">
+                <label>视角预设</label>
+                <div class="button-group">
+                    <button id="view-top">俯视</button>
+                    <button id="view-side">侧视</button>
+                    <button id="view-45">45度</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <div class="button-group">
+                    <button id="reset-params">重置参数</button>
+                    <button id="export-params">导出参数</button>
+                    <button id="import-params">导入参数</button>
+                    <input type="file" id="import-file" accept=".json" style="display: none;">
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧面板：曲线和旋臂 -->
+        <div class="control-panel" id="right-panel">
+            <h3>曲线与旋臂</h3>
+            
+            <div class="control-group">
+                <label style="font-weight: bold; margin-bottom: 10px;">旋转速度曲线</label>
+                <div class="curve-editor" id="rotation-curve-editor">
+                    <canvas id="rotation-curve-canvas"></canvas>
+                </div>
+                <div style="margin-top: 10px;">
+                    <div style="margin-bottom: 8px;">
+                        <label style="font-size: 11px;">
+                            最小速度 (km/s)
+                            <span class="value" id="rotation-speed-min-value">100</span>
+                        </label>
+                        <input type="range" id="rotation-speed-min" min="0" max="200" step="10" value="0">
+                    </div>
+                    <div>
+                        <label style="font-size: 11px;">
+                            最大速度 (km/s)
+                            <span class="value" id="rotation-speed-max-value">150</span>
+                        </label>
+                        <input type="range" id="rotation-speed-max" min="100" max="1000" step="10" value="150">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label style="font-weight: bold; margin-bottom: 10px;">密度分布曲线</label>
+                <div class="curve-editor" id="density-curve-editor">
+                    <canvas id="density-curve-canvas"></canvas>
+                </div>
+                <div style="margin-top: 10px;">
+                    <div style="margin-bottom: 8px;">
+                        <label style="font-size: 11px;">
+                            最小密度
+                            <span class="value" id="density-min-value">0.0</span>
+                        </label>
+                        <input type="range" id="density-min" min="0" max="1" step="0.1" value="0.0">
+                    </div>
+                    <div>
+                        <label style="font-size: 11px;">
+                            最大密度
+                            <span class="value" id="density-max-value">1.0</span>
+                        </label>
+                        <input type="range" id="density-max" min="0" max="10" step="0.5" value="2.0">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label style="font-weight: bold; margin-bottom: 10px;">旋臂设置（密度波）</label>
+                <div style="margin-bottom: 10px;">
+                    <label style="font-size: 11px;">
+                        旋臂数量
+                        <span class="value" id="arm-count-value">3</span>
+                    </label>
+                    <input type="range" id="arm-count" min="1" max="6" step="1" value="3">
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="font-size: 11px;">
+                        旋臂紧密度
+                        <span class="value" id="arm-tightness-value">1.0</span>
+                    </label>
+                    <input type="range" id="arm-tightness" min="0.5" max="3.0" step="0.1" value="1.0">
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="font-size: 11px;">
+                        旋臂密度增强
+                        <span class="value" id="arm-density-value">2.0</span>
+                    </label>
+                    <input type="range" id="arm-density" min="1.0" max="5.0" step="0.1" value="2.0">
+                </div>
+                <div>
+                    <label style="font-size: 11px;">
+                        旋臂宽度
+                        <span class="value" id="arm-width-value">0.3</span>
+                    </label>
+                    <input type="range" id="arm-width" min="0.1" max="1.0" step="0.05" value="0.3">
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="info">
+        使用鼠标拖拽旋转视角 | 滚轮缩放
+    </div>
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
