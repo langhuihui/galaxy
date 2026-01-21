@@ -150,9 +150,20 @@ export class CurveEditor {
     // 获取曲线值（根据输入x返回y）
     getCurve() {
         return (x) => {
+            // 确保输入值有效
+            if (isNaN(x) || x < 0 || x > 1) {
+                return 0;
+            }
+            
             // 使用贝塞尔曲线计算y值
             const t = Math.max(0, Math.min(1, x));
             const point = this.bezierPoint(t, this.controlPoints);
+            
+            // 确保返回值有效
+            if (isNaN(point.y)) {
+                return 0;
+            }
+            
             return Math.max(0, Math.min(1, point.y));
         };
     }

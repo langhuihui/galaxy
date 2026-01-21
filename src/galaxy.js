@@ -54,6 +54,11 @@ export class Galaxy {
      * @returns {number} 旋转速度
      */
     calculateRotationSpeed(r, angle) {
+        // 确保输入值有效
+        if (isNaN(r) || r < 0) {
+            return 0;
+        }
+        
         const { scale } = this.rotationParams;
         const rScaled = r / scale; // 转换为 kpc
         // 使用实际的星系半径（转换为 kpc）作为最大半径，确保从中心到边缘全部应用曲线
@@ -111,6 +116,11 @@ export class Galaxy {
             speed = speed * viscosityFactor;
         }
         
+        // 确保返回值有效
+        if (isNaN(speed) || speed < 0) {
+            return 0;
+        }
+        
         return speed; // 返回 km/s 单位
     }
 
@@ -135,7 +145,8 @@ export class Galaxy {
 
         // 生成粒子 - 扁平盘状分布，无旋臂结构
         // 使用平滑的密度分布函数，中心密度高，边缘密度低
-        for (let i = 0; i < this.parameters.count; i++) {
+        let i = 0;
+        while (i < this.parameters.count) {
             const i3 = i * 3;
 
             // 在XZ平面上分布（盘状结构）
@@ -161,6 +172,7 @@ export class Galaxy {
             let angle = Math.random() * Math.PI * 2;
             
             // 应用旋臂密度波（如果启用）
+            let shouldKeep = true;
             if (this.parameters.armCount > 0 && this.parameters.armDensity > 1.0) {
                 // 对数螺旋线：θ = a * ln(r) + b
                 // 使用紧密度参数控制螺旋的紧密程度
@@ -188,11 +200,11 @@ export class Galaxy {
                 // 使用密度增强来决定是否保留这个粒子
                 // 提高保留概率，让旋臂更明显
                 const keepProb = Math.min(1.0, 0.15 + (densityBoost - 1.0) * 0.8 + 0.2);
-                if (Math.random() > keepProb) {
-                    // 跳过这个粒子，重新生成
-                    i--;
-                    continue;
-                }
+                shouldKeep = Math.random() <= keepProb;
+            }
+            
+            if (!shouldKeep) {
+                continue;
             }
             
             // XY平面上的位置
@@ -239,6 +251,38 @@ export class Galaxy {
             const baseSize = this.parameters.size;
             const sizeVariation = baseSize * 0.3; // 30% 的变化范围
             sizes[i] = baseSize + (Math.random() - 0.5) * sizeVariation;
+            
+            // 粒子创建成功，继续下一个
+            i++;
+        }
+
+        // 验证并修复 NaN 值
+        for (let i = 0; i < this.parameters.count; i++) {
+            const i3 = i * 3;
+            if (isNaN(positions[i3]) || isNaN(positions[i3 + 1]) || isNaN(positions[i3 + 2])) {
+                // 如果位置有 NaN，设置为中心
+                positions[i3] = 0;
+                positions[i3 + 1] = 0;
+                positions[i3 + 2] = 0;
+            }
+            if (isNaN(colors[i3]) || isNaN(colors[i3 + 1]) || isNaN(colors[i3 + 2])) {
+                // 如果颜色有 NaN，设置为默认色
+                colors[i3] = 0.5;
+                colors[i3 + 1] = 0.5;
+                colors[i3 + 2] = 0.5;
+            }
+            if (isNaN(sizes[i])) {
+                sizes[i] = this.parameters.size;
+            }
+            if (isNaN(distances[i])) {
+                distances[i] = 0;
+            }
+            if (isNaN(angles[i])) {
+                angles[i] = 0;
+            }
+            if (isNaN(rotationSpeeds[i])) {
+                rotationSpeeds[i] = 0;
+            }
         }
 
         // 设置几何体属性
@@ -248,6 +292,18 @@ export class Galaxy {
         this.geometry.setAttribute('distance', new THREE.BufferAttribute(distances, 1));
         this.geometry.setAttribute('angle', new THREE.BufferAttribute(angles, 1));
         this.geometry.setAttribute('rotationSpeed', new THREE.BufferAttribute(rotationSpeeds, 1));
+
+        // 手动计算 bounding sphere 并处理可能的 NaN 值
+        try {
+            this.geometry.computeBoundingSphere();
+        } catch (error) {
+            console.warn('计算 bounding sphere 失败，手动设置默认值:', error);
+            // 手动设置一个默认的 bounding sphere
+            this.geometry.boundingSphere = new THREE.Sphere(
+                new THREE.Vector3(0, 0, 0), 
+                this.parameters.radius * 2
+            );
+        }
 
         // 创建材质
         this.material = new THREE.ShaderMaterial({

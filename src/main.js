@@ -10,6 +10,47 @@ import { CurveEditor } from './curveEditor.js';
  * 银河系模拟主应用
  */
 class GalaxySimulation {
+    // 默认参数配置对象
+    static DEFAULT_PARAMS = {
+        // 基础参数
+        rotationSpeed: 0.1,
+        particleCount: 50000,
+        particleSize: 4.0,
+        galaxyRadius: 6.5,
+        randomness: 0.3,
+        glowIntensity: 8.0,
+        haloSize: 0.6,
+        viscosity: 0.0,
+        insideColor: '#ffaa44',
+        outsideColor: '#4488ff',
+        
+        // 极值范围
+        rotationSpeedMin: 0,
+        rotationSpeedMax: 150,
+        densityMin: 0.0,
+        densityMax: 2.0,
+        
+        // 旋臂参数
+        armCount: 3,
+        armTightness: 1.0,
+        armDensity: 2.0,
+        armWidth: 0.3,
+        
+        // 曲线控制点（凹形曲线，中间控制点靠近左下角）
+        rotationCurvePoints: [
+          { x: 0, y: 1 },
+          { x: 0.2, y: 0.2 },
+          { x: 0.2, y: 0.1 },
+          { x: 1, y: 0 }
+        ],
+        densityCurvePoints: [
+            { x: 0, y: 1 },
+            { x: 0.2, y: 0.2 },
+            { x: 0.2, y: 0.1 },
+            { x: 1, y: 0 }
+        ]
+    };
+    
     constructor() {
         // 场景元素
         this.scene = null;
@@ -24,7 +65,7 @@ class GalaxySimulation {
         // 动画参数
         this.clock = new THREE.Clock();
         this.elapsedTime = 0;
-        this.rotationSpeedMultiplier = 1.0; // 默认正常旋转速度
+        this.rotationSpeedMultiplier = GalaxySimulation.DEFAULT_PARAMS.rotationSpeed; // 使用默认参数
         
         // UI 元素
         this.rotationSpeedSlider = document.getElementById('rotation-speed');
@@ -124,14 +165,9 @@ class GalaxySimulation {
      * 初始化曲线编辑器
      */
     initCurveEditors() {
-        // 旋转速度曲线编辑器（默认：中心快，边缘慢）
+        // 旋转速度曲线编辑器（使用默认参数配置）
         this.rotationCurveEditor = new CurveEditor('rotation-curve-canvas', {
-            controlPoints: [
-                { x: 0, y: 1 },
-                { x: 0.3, y: 0.8 },
-                { x: 0.7, y: 0.4 },
-                { x: 1, y: 0 }
-            ],
+            controlPoints: GalaxySimulation.DEFAULT_PARAMS.rotationCurvePoints,
             onUpdate: (curveFn) => {
                 if (this.galaxy) {
                     this.galaxy.parameters.rotationCurveFn = curveFn;
@@ -144,14 +180,9 @@ class GalaxySimulation {
             }
         });
         
-        // 密度分布曲线编辑器（默认：中心密集，边缘稀疏，最大密度范围扩大10倍）
+        // 密度分布曲线编辑器（使用默认参数配置）
         this.densityCurveEditor = new CurveEditor('density-curve-canvas', {
-            controlPoints: [
-                { x: 0, y: 1 },
-                { x: 0.1, y: 0.9 },
-                { x: 0.5, y: 0.5 },
-                { x: 1, y: 0 }
-            ],
+            controlPoints: GalaxySimulation.DEFAULT_PARAMS.densityCurvePoints,
             onUpdate: (curveFn) => {
                 if (this.galaxy) {
                     this.galaxy.parameters.densityCurveFn = curveFn;
@@ -175,27 +206,28 @@ class GalaxySimulation {
             this.galaxy.dispose();
         }
 
-        const particleCount = parseInt(this.particleCountSlider?.value || 50000);
-        const particleSize = parseFloat(this.particleSizeSlider?.value || 4.0);
-        const galaxyRadius = parseFloat(this.galaxyRadiusSlider?.value || 6.5);
-        const randomness = parseFloat(this.randomnessSlider?.value || 0.3);
-        const glowIntensity = parseFloat(this.glowIntensitySlider?.value || 8.0);
-        const haloSize = parseFloat(this.haloSizeSlider?.value || 0.6);
-        const viscosity = parseFloat(this.viscositySlider?.value || 0.0);
-        const insideColor = this.insideColorInput?.value || '#ffaa44';
-        const outsideColor = this.outsideColorInput?.value || '#4488ff';
+        const params = GalaxySimulation.DEFAULT_PARAMS;
+        const particleCount = parseInt(this.particleCountSlider?.value || params.particleCount);
+        const particleSize = parseFloat(this.particleSizeSlider?.value || params.particleSize);
+        const galaxyRadius = parseFloat(this.galaxyRadiusSlider?.value || params.galaxyRadius);
+        const randomness = parseFloat(this.randomnessSlider?.value || params.randomness);
+        const glowIntensity = parseFloat(this.glowIntensitySlider?.value || params.glowIntensity);
+        const haloSize = parseFloat(this.haloSizeSlider?.value || params.haloSize);
+        const viscosity = parseFloat(this.viscositySlider?.value || params.viscosity);
+        const insideColor = this.insideColorInput?.value || params.insideColor;
+        const outsideColor = this.outsideColorInput?.value || params.outsideColor;
         
         // 旋臂参数
-        const armCount = parseInt(this.armCountSlider?.value || 3);
-        const armTightness = parseFloat(this.armTightnessSlider?.value || 1.0);
-        const armDensity = parseFloat(this.armDensitySlider?.value || 2.0);
-        const armWidth = parseFloat(this.armWidthSlider?.value || 0.3);
+        const armCount = parseInt(this.armCountSlider?.value || params.armCount);
+        const armTightness = parseFloat(this.armTightnessSlider?.value || params.armTightness);
+        const armDensity = parseFloat(this.armDensitySlider?.value || params.armDensity);
+        const armWidth = parseFloat(this.armWidthSlider?.value || params.armWidth);
         
         // 极值范围
-        const rotationSpeedMin = parseFloat(this.rotationSpeedMinSlider?.value || 0);
-        const rotationSpeedMax = parseFloat(this.rotationSpeedMaxSlider?.value || 150);
-        const densityMin = parseFloat(this.densityMinSlider?.value || 0.0);
-        const densityMax = parseFloat(this.densityMaxSlider?.value || 2.0);
+        const rotationSpeedMin = parseFloat(this.rotationSpeedMinSlider?.value || params.rotationSpeedMin);
+        const rotationSpeedMax = parseFloat(this.rotationSpeedMaxSlider?.value || params.rotationSpeedMax);
+        const densityMin = parseFloat(this.densityMinSlider?.value || params.densityMin);
+        const densityMax = parseFloat(this.densityMaxSlider?.value || params.densityMax);
         
         // 获取曲线函数并应用极值范围
         const baseRotationCurveFn = this.rotationCurveEditor?.getCurve() || null;
@@ -756,8 +788,11 @@ class GalaxySimulation {
      * 重置所有参数到默认值
      */
     resetParameters() {
+        // 使用默认参数配置重置所有参数
+        const params = GalaxySimulation.DEFAULT_PARAMS;
+        
         // 重置旋转速度
-        this.rotationSpeedMultiplier = 1.0;
+        this.rotationSpeedMultiplier = params.rotationSpeed;
         if (this.rotationSpeedSlider) {
             this.rotationSpeedSlider.value = this.rotationSpeedMultiplier;
         }
@@ -767,146 +802,128 @@ class GalaxySimulation {
 
         // 重置粒子数量
         if (this.particleCountSlider) {
-            this.particleCountSlider.value = 50000;
+            this.particleCountSlider.value = params.particleCount;
         }
         if (this.particleCountValue) {
-            this.particleCountValue.textContent = '50000';
+            this.particleCountValue.textContent = params.particleCount.toLocaleString();
         }
 
         // 重置粒子大小
         if (this.particleSizeSlider) {
-            this.particleSizeSlider.value = 4.0;
+            this.particleSizeSlider.value = params.particleSize;
         }
         if (this.particleSizeValue) {
-            this.particleSizeValue.textContent = '4.0';
+            this.particleSizeValue.textContent = params.particleSize.toFixed(2);
         }
 
         // 重置发光强度
         if (this.glowIntensitySlider) {
-            this.glowIntensitySlider.value = 8.0;
+            this.glowIntensitySlider.value = params.glowIntensity;
         }
         if (this.glowIntensityValue) {
-            this.glowIntensityValue.textContent = '8.0';
+            this.glowIntensityValue.textContent = params.glowIntensity.toFixed(1);
         }
 
         // 重置光晕大小
         if (this.haloSizeSlider) {
-            this.haloSizeSlider.value = 0.6;
+            this.haloSizeSlider.value = params.haloSize;
         }
         if (this.haloSizeValue) {
-            this.haloSizeValue.textContent = '0.6';
+            this.haloSizeValue.textContent = params.haloSize.toFixed(2);
         }
 
         // 重置星系半径
         if (this.galaxyRadiusSlider) {
-            this.galaxyRadiusSlider.value = 6.5;
+            this.galaxyRadiusSlider.value = params.galaxyRadius;
         }
         if (this.galaxyRadiusValue) {
-            this.galaxyRadiusValue.textContent = '6.5';
+            this.galaxyRadiusValue.textContent = params.galaxyRadius.toFixed(1);
         }
 
         // 重置随机性
         if (this.randomnessSlider) {
-            this.randomnessSlider.value = 0.3;
+            this.randomnessSlider.value = params.randomness;
         }
         if (this.randomnessValue) {
-            this.randomnessValue.textContent = '0.3';
+            this.randomnessValue.textContent = params.randomness.toFixed(2);
         }
 
-        // 重置曲线编辑器（凹形曲线，中间控制点靠近左下角）
+        // 重置曲线编辑器（使用默认参数配置）
         if (this.rotationCurveEditor) {
-            this.rotationCurveEditor.setControlPoints([
-                { x: 0, y: 0 },
-                { x: 0.2, y: 0.1 },
-                { x: 0.8, y: 0.2 },
-                { x: 1, y: 1 }
-            ]);
+            this.rotationCurveEditor.setControlPoints(params.rotationCurvePoints);
         }
         if (this.densityCurveEditor) {
-            this.densityCurveEditor.setControlPoints([
-                { x: 0, y: 1 },
-                { x: 0.2, y: 0.8 },
-                { x: 0.8, y: 0.1 },
-                { x: 1, y: 0 }
-            ]);
+            this.densityCurveEditor.setControlPoints(params.densityCurvePoints);
         }
         
         // 重置旋转速度极值范围
         if (this.rotationSpeedMinSlider) {
-            this.rotationSpeedMinSlider.value = 0;
+            this.rotationSpeedMinSlider.value = params.rotationSpeedMin;
         }
         if (document.getElementById('rotation-speed-min-value')) {
-            document.getElementById('rotation-speed-min-value').textContent = '0';
+            document.getElementById('rotation-speed-min-value').textContent = params.rotationSpeedMin.toFixed(0);
         }
         if (this.rotationSpeedMaxSlider) {
-            this.rotationSpeedMaxSlider.value = 150;
+            this.rotationSpeedMaxSlider.value = params.rotationSpeedMax;
         }
         if (document.getElementById('rotation-speed-max-value')) {
-            document.getElementById('rotation-speed-max-value').textContent = '150';
+            document.getElementById('rotation-speed-max-value').textContent = params.rotationSpeedMax.toFixed(0);
         }
         
         // 重置密度极值范围
         if (this.densityMinSlider) {
-            this.densityMinSlider.value = 0.0;
+            this.densityMinSlider.value = params.densityMin;
         }
         if (document.getElementById('density-min-value')) {
-            document.getElementById('density-min-value').textContent = '0.0';
+            document.getElementById('density-min-value').textContent = params.densityMin.toFixed(1);
         }
         if (this.densityMaxSlider) {
-            this.densityMaxSlider.value = 2.0;
+            this.densityMaxSlider.value = params.densityMax;
         }
         if (document.getElementById('density-max-value')) {
-            document.getElementById('density-max-value').textContent = '2.0';
+            document.getElementById('density-max-value').textContent = params.densityMax.toFixed(1);
         }
         
         // 重置旋臂参数
         if (this.armCountSlider) {
-            this.armCountSlider.value = 3;
+            this.armCountSlider.value = params.armCount;
         }
         if (document.getElementById('arm-count-value')) {
-            document.getElementById('arm-count-value').textContent = '3';
+            document.getElementById('arm-count-value').textContent = params.armCount.toString();
         }
         if (this.armTightnessSlider) {
-            this.armTightnessSlider.value = 1.0;
+            this.armTightnessSlider.value = params.armTightness;
         }
         if (document.getElementById('arm-tightness-value')) {
-            document.getElementById('arm-tightness-value').textContent = '1.0';
+            document.getElementById('arm-tightness-value').textContent = params.armTightness.toFixed(1);
         }
         if (this.armDensitySlider) {
-            this.armDensitySlider.value = 2.0;
+            this.armDensitySlider.value = params.armDensity;
         }
         if (document.getElementById('arm-density-value')) {
-            document.getElementById('arm-density-value').textContent = '2.0';
+            document.getElementById('arm-density-value').textContent = params.armDensity.toFixed(1);
         }
         if (this.armWidthSlider) {
-            this.armWidthSlider.value = 0.3;
+            this.armWidthSlider.value = params.armWidth;
         }
         if (document.getElementById('arm-width-value')) {
-            document.getElementById('arm-width-value').textContent = '0.3';
-        }
-
-        // 重置光晕大小
-        if (this.haloSizeSlider) {
-            this.haloSizeSlider.value = 0.6;
-        }
-        if (this.haloSizeValue) {
-            this.haloSizeValue.textContent = '0.6';
+            document.getElementById('arm-width-value').textContent = params.armWidth.toFixed(2);
         }
 
         // 重置粘滞效果
         if (this.viscositySlider) {
-            this.viscositySlider.value = 0.0;
+            this.viscositySlider.value = params.viscosity;
         }
         if (this.viscosityValue) {
-            this.viscosityValue.textContent = '0.0';
+            this.viscosityValue.textContent = params.viscosity.toFixed(2);
         }
 
         // 重置颜色
         if (this.insideColorInput) {
-            this.insideColorInput.value = '#ffaa44';
+            this.insideColorInput.value = params.insideColor;
         }
         if (this.outsideColorInput) {
-            this.outsideColorInput.value = '#4488ff';
+            this.outsideColorInput.value = params.outsideColor;
         }
 
         // 重建银河系
