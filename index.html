@@ -326,7 +326,7 @@
         <!-- 右侧面板：所有参数 -->
         <div class="control-panel" id="right-panel">
             <h3>参数控制</h3>
-            
+
             <!-- 基础参数 -->
             <div class="control-section" data-section="basic">
                 <div class="control-section-header" onclick="toggleSection('basic')">
@@ -337,11 +337,11 @@
                     <div class="control-group">
                         <label>
                             旋转速度
-                            <span class="value" id="rotation-speed-value">1.0</span>
+                            <span class="value" id="rotation-speed-value"></span>
                         </label>
-                        <input type="range" id="rotation-speed" min="0" max="3" step="0.01" value="1.0">
+                        <input type="range" id="rotation-speed" min="0" max="3" step="0.01">
                     </div>
-                    
+
                     <div class="control-group">
                         <label>
                             旋转方向
@@ -351,106 +351,157 @@
                             <button id="rotation-direction-ccw" onclick="setRotationDirection(-1)">逆时针</button>
                         </div>
                     </div>
-                    
+
                     <div class="control-group">
                         <label>
                             粒子数量
-                            <span class="value" id="particle-count-value">50000</span>
+                            <span class="value" id="particle-count-value"></span>
                         </label>
-                        <input type="range" id="particle-count" min="10000" max="100000" step="5000" value="50000">
+                        <input type="range" id="particle-count" min="10000" max="100000" step="5000">
                     </div>
-                    
-                    <div class="control-group">
-                        <label>
-                            粒子大小
-                            <span class="value" id="particle-size-value">4.0</span>
-                        </label>
-                        <input type="range" id="particle-size" min="0.01" max="10.0" step="0.01" value="4.0">
-                    </div>
-                    
+
                     <div class="control-group">
                         <label>
                             星系半径
-                            <span class="value" id="galaxy-radius-value">6.5</span>
+                            <span class="value" id="galaxy-radius-value"></span>
                         </label>
-                        <input type="range" id="galaxy-radius" min="2" max="10" step="0.5" value="6.5">
+                        <input type="range" id="galaxy-radius" min="2" max="10" step="0.5">
                     </div>
-                    
+
                     <div class="control-group">
                         <label>
                             随机性
-                            <span class="value" id="randomness-value">0.3</span>
+                            <span class="value" id="randomness-value"></span>
                         </label>
-                        <input type="range" id="randomness" min="0" max="1" step="0.05" value="0.3">
+                        <input type="range" id="randomness" min="0" max="1" step="0.05">
                     </div>
-                    
+
+                    <div class="control-group" style="margin-top: 15px;">
+                        <label style="font-weight: bold; margin-bottom: 10px;">Bloom 泛光效果</label>
+                    </div>
                     <div class="control-group">
                         <label>
-                            发光强度
-                            <span class="value" id="glow-intensity-value">8.0</span>
+                            Bloom 强度
+                            <span class="value" id="bloom-strength-value"></span>
                         </label>
-                        <input type="range" id="glow-intensity" min="0" max="50" step="0.1" value="8.0">
+                        <input type="range" id="bloom-strength" min="0" max="3.0" step="0.05">
+                        <small style="font-size: 10px; color: #888;">控制泛光的强度</small>
                     </div>
-                    
                     <div class="control-group">
                         <label>
-                            光晕大小
-                            <span class="value" id="halo-size-value">0.6</span>
+                            Bloom 半径
+                            <span class="value" id="bloom-radius-value"></span>
                         </label>
-                        <input type="range" id="halo-size" min="0.1" max="1.0" step="0.05" value="0.6">
+                        <input type="range" id="bloom-radius" min="0.1" max="2.0" step="0.05">
+                        <small style="font-size: 10px; color: #888;">控制泛光的扩散半径</small>
                     </div>
-                    
+                    <div class="control-group">
+                        <label>
+                            Bloom 阈值
+                            <span class="value" id="bloom-threshold-value"></span>
+                        </label>
+                        <input type="range" id="bloom-threshold" min="0.1" max="2.0" step="0.05">
+                        <small style="font-size: 10px; color: #888;">超过此亮度的像素才会泛光（调低可减少闪烁）</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 颜色与外观 -->
+            <div class="control-section collapsed" data-section="appearance">
+                <div class="control-section-header" onclick="toggleSection('appearance')">
+                    <h4>粒子外观</h4>
+                    <span class="control-section-toggle">▼</span>
+                </div>
+                <div class="control-section-content">
                     <div class="control-group">
                         <label>
                             中心颜色
-                            <input type="color" id="inside-color" value="#ffaa44">
+                            <input type="color" id="inside-color">
                         </label>
                     </div>
-                    
+
                     <div class="control-group">
                         <label>
                             边缘颜色
-                            <input type="color" id="outside-color" value="#4488ff">
+                            <input type="color" id="outside-color">
                         </label>
                     </div>
-                    
-                    <div class="control-group">
+
+                    <div class="control-group" style="margin-top: 15px;">
                         <label>
-                            云雾比例
-                            <span class="value" id="cloud-ratio-value">8.0%</span>
+                            发光强度
+                            <span class="value" id="glow-intensity-value"></span>
                         </label>
-                        <input type="range" id="cloud-ratio" min="0" max="0.2" step="0.01" value="0.08">
-                        <small style="font-size: 10px; color: #888;">随机选择粒子作为云雾（大号光晕）</small>
+                        <input type="range" id="glow-intensity" min="0" max="50" step="0.1">
                     </div>
-                    
+
                     <div class="control-group">
                         <label>
-                            云雾光晕倍数
-                            <span class="value" id="cloud-halo-multiplier-value">3.0</span>
+                            <input type="checkbox" id="random-size" style="margin-right: 5px;">
+                            随机大小
                         </label>
-                        <input type="range" id="cloud-halo-multiplier" min="1.5" max="6.0" step="0.1" value="3.0">
-                        <small style="font-size: 10px; color: #888;">云雾粒子的光晕大小倍数</small>
+                        <div style="margin-top: 8px;">
+                            <label style="font-size: 11px;">
+                                最小大小
+                                <span class="value" id="size-min-value"></span>
+                            </label>
+                            <input type="range" id="size-min" min="0.5" max="5.0" step="0.1">
+                        </div>
+                        <div>
+                            <label style="font-size: 11px;">
+                                最大大小
+                                <span class="value" id="size-max-value"></span>
+                            </label>
+                            <input type="range" id="size-max" min="2.0" max="100.0" step="0.1">
+                        </div>
                     </div>
-                    
+
                     <div class="control-group">
                         <label>
-                            <input type="checkbox" id="random-brightness" checked style="margin-right: 5px;">
+                            <input type="checkbox" id="random-brightness" style="margin-right: 5px;">
                             随机亮度
                         </label>
                         <div style="margin-top: 8px;">
                             <label style="font-size: 11px;">
                                 最小亮度
-                                <span class="value" id="brightness-min-value">0.60</span>
+                                <span class="value" id="brightness-min-value"></span>
                             </label>
-                            <input type="range" id="brightness-min" min="0.3" max="1.0" step="0.05" value="0.6">
+                            <input type="range" id="brightness-min" min="0.3" max="1.0" step="0.05">
                         </div>
                         <div>
                             <label style="font-size: 11px;">
                                 最大亮度
-                                <span class="value" id="brightness-max-value">1.40</span>
+                                <span class="value" id="brightness-max-value"></span>
                             </label>
-                            <input type="range" id="brightness-max" min="1.0" max="2.0" step="0.05" value="1.4">
+                            <input type="range" id="brightness-max" min="1.0" max="2.0" step="0.05">
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 云雾效果 -->
+            <div class="control-section collapsed" data-section="cloud">
+                <div class="control-section-header" onclick="toggleSection('cloud')">
+                    <h4>云雾效果</h4>
+                    <span class="control-section-toggle">▼</span>
+                </div>
+                <div class="control-section-content">
+                    <div class="control-group">
+                        <label>
+                            云雾比例
+                            <span class="value" id="cloud-ratio-value"></span>
+                        </label>
+                        <input type="range" id="cloud-ratio" min="0" max="0.2" step="0.01">
+                        <small style="font-size: 10px; color: #888;">随机选择粒子作为云雾（大号光晕）</small>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            云雾光晕倍数
+                            <span class="value" id="cloud-halo-multiplier-value"></span>
+                        </label>
+                        <input type="range" id="cloud-halo-multiplier" min="1.5" max="6.0" step="0.1">
+                        <small style="font-size: 10px; color: #888;">云雾粒子的光晕大小倍数</small>
                     </div>
                 </div>
             </div>

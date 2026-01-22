@@ -17,7 +17,6 @@ export class Galaxy {
       insideColor: parameters.insideColor || '#ff6030',
       outsideColor: parameters.outsideColor || '#1b3984',
       glowIntensity: parameters.glowIntensity || 2.0,
-      haloSize: parameters.haloSize || 0.5,
       densityPower: parameters.densityPower || 0.25,
       // 旋臂参数
       armTightness: parameters.armTightness || 1.0,
@@ -34,6 +33,9 @@ export class Galaxy {
       // 随机亮度参数
       randomBrightness: parameters.randomBrightness !== undefined ? parameters.randomBrightness : true, // 是否启用随机亮度
       brightnessRange: parameters.brightnessRange || [0.6, 1.4], // 亮度范围 [min, max]
+      // 随机大小参数
+      randomSize: parameters.randomSize !== undefined ? parameters.randomSize : true, // 是否启用随机大小
+      sizeRange: parameters.sizeRange || [4.0, 40.0], // 大小范围 [min, max]
       // 旋转方向参数
       rotationDirection: parameters.rotationDirection !== undefined ? parameters.rotationDirection : 1, // 1为顺时针，-1为逆时针
       ...parameters
@@ -149,7 +151,6 @@ export class Galaxy {
     const distances = new Float32Array(this.parameters.count);
     const angles = new Float32Array(this.parameters.count);
     const rotationSpeeds = new Float32Array(this.parameters.count);
-    const haloSizes = new Float32Array(this.parameters.count); // 每个粒子的光晕大小
     const brightnesses = new Float32Array(this.parameters.count); // 每个粒子的随机亮度
 
     // 颜色插值
@@ -301,16 +302,20 @@ export class Galaxy {
       colors[i3 + 1] = mixedColor.g;
       colors[i3 + 2] = mixedColor.b;
 
-      // 大小：保持固定大小，不根据距离调整
-      const baseSize = this.parameters.size;
-      const sizeVariation = baseSize * 0.3; // 30% 的变化范围
-      sizes[i] = baseSize + (Math.random() - 0.5) * sizeVariation;
+      // 大小：使用随机大小范围，乘以全局大小参数
+      if (this.parameters.randomSize) {
+        const [sizeMin, sizeMax] = this.parameters.sizeRange;
+        // 归一化到 0.5-1.5 范围，然后乘以全局大小
+        const normalizedSize = 0.5 + (sizeMin + Math.random() * (sizeMax - sizeMin)) / 6.0;
+        sizes[i] = normalizedSize;
+      } else {
+        // 不启用随机大小时，使用基础大小
+        sizes[i] = 1.0;
+      }
 
       // 云雾效果：随机选择一部分粒子作为云雾粒子，给它们更大的光晕
       const isCloud = Math.random() < this.parameters.cloudRatio;
       if (isCloud) {
-        // 云雾粒子：光晕大小是基础光晕的倍数
-        haloSizes[i] = this.parameters.haloSize * this.parameters.cloudHaloMultiplier;
         // 云雾粒子：增加亮度使其更明显（2-3倍亮度）
         if (this.parameters.randomBrightness) {
           const [brightnessMin, brightnessMax] = this.parameters.brightnessRange;
@@ -320,8 +325,6 @@ export class Galaxy {
           brightnesses[i] = 2.5; // 云雾粒子默认亮度2.5倍
         }
       } else {
-        // 普通粒子：使用基础光晕大小，可以有一些随机变化
-        haloSizes[i] = this.parameters.haloSize * (0.8 + Math.random() * 0.4); // 0.8-1.2倍
         // 随机亮度：为每个粒子添加随机亮度因子
         if (this.parameters.randomBrightness) {
           const [brightnessMin, brightnessMax] = this.parameters.brightnessRange;
@@ -362,9 +365,6 @@ export class Galaxy {
       if (isNaN(rotationSpeeds[i])) {
         rotationSpeeds[i] = 0;
       }
-      if (isNaN(haloSizes[i])) {
-        haloSizes[i] = this.parameters.haloSize;
-      }
       if (isNaN(brightnesses[i])) {
         brightnesses[i] = 1.0;
       }
@@ -377,7 +377,6 @@ export class Galaxy {
     this.geometry.setAttribute('distance', new THREE.BufferAttribute(distances, 1));
     this.geometry.setAttribute('angle', new THREE.BufferAttribute(angles, 1));
     this.geometry.setAttribute('rotationSpeed', new THREE.BufferAttribute(rotationSpeeds, 1));
-    this.geometry.setAttribute('haloSize', new THREE.BufferAttribute(haloSizes, 1));
     this.geometry.setAttribute('brightness', new THREE.BufferAttribute(brightnesses, 1));
 
     // 手动计算 bounding sphere 并处理可能的 NaN 值
@@ -400,12 +399,8 @@ export class Galaxy {
         uSize: { value: this.parameters.size },
         uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
         uGlowIntensity: { value: this.parameters.glowIntensity || 2.0 },
-        uHaloSize: { value: this.parameters.haloSize || 0.5 }, // 保留作为默认值，但着色器中会优先使用每个粒子的haloSize属性
         uRotationDirection: { value: this.parameters.rotationDirection || 1 } // 旋转方向：1为顺时针，-1为逆时针
       },
-      // 禁用材质的 tone mapping，让材质不受渲染器 tone mapping 影响
-      // 这可能有助于匹配 r160 的行为
-      tonemapped: false,
       vertexShader: `
                 uniform float uTime;
                 uniform float uTimeOffset;
@@ -413,18 +408,18 @@ export class Galaxy {
                 uniform float uPixelRatio;
                 uniform float uRotationDirection;
 
-                attribute float size;
-                attribute float distance;
-                attribute float angle;
-                attribute float rotationSpeed;
-                attribute float haloSize;
-                attribute float brightness;
-                // color attribute is automatically provided by Three.js when vertexColors: true
+      attribute float size;
+      attribute float distance;
+      attribute float angle;
+      attribute float rotationSpeed;
+      attribute float brightness;
+      // color attribute is automatically provided by Three.js when vertexColors: true
 
-                varying vec3 vColor;
-                varying float vDistance;
-                varying float vHaloSize;
-                varying float vBrightness;
+      varying vec3 vColor;
+      varying float vDistance;
+      varying float vBrightness;
+      varying float vPointSize;
+      varying float vPointFade;
 
                 void main() {
                     // 先获取原始位置
@@ -458,89 +453,88 @@ export class Galaxy {
                     gl_Position = projectedPosition;
                     
                     // 保持固定大小，不根据距离调整
-                    gl_PointSize = size * uSize * uPixelRatio;
-                    gl_PointSize *= (1.0 / -viewPosition.z);
+                    float pointSize = size * uSize * uPixelRatio;
+                    pointSize *= (1.0 / -viewPosition.z);
+                    vPointFade = smoothstep(0.6, 1.6, pointSize);
+                    gl_PointSize = max(pointSize, 1.5);
+                    vPointSize = pointSize;
 
-                    vColor = color;
-                    vDistance = distance;
-                    vHaloSize = haloSize;
-                    vBrightness = brightness;
+      vColor = color;
+      vDistance = distance;
+      vBrightness = brightness;
                 }
             `,
       fragmentShader: `
-                uniform float uGlowIntensity;
-                uniform float uHaloSize;
-                
-                varying vec3 vColor;
-                varying float vDistance;
-                varying float vHaloSize;
-                varying float vBrightness;
+      uniform float uGlowIntensity;
+      
+      varying vec3 vColor;
+      varying float vDistance;
+      varying float vBrightness;
+      varying float vPointSize;
+      varying float vPointFade;
 
-                void main() {
-                    // 计算到粒子中心的距离
-                    vec2 center = vec2(0.5);
-                    vec2 coord = gl_PointCoord - center;
-                    float distanceToCenter = length(coord);
-                    
-                    // 创建发光的圆形粒子效果
-                    // 使用每个粒子的光晕大小（如果为0则使用默认值）
-                    float radius = vHaloSize > 0.0 ? vHaloSize : uHaloSize;
-                    
-                    // 确保圆形遮罩：如果距离超过0.5（点精灵的边界），则丢弃片段
-                    // 这样可以防止方形边缘出现
-                    if (distanceToCenter > 0.5) {
-                        discard;
-                    }
-                    
-                    // 核心亮度（中心最亮）
-                    float core = 1.0 - smoothstep(0.0, 0.15, distanceToCenter);
-                    
-                    // 外圈光晕（更柔和的光晕效果）
-                    // 限制光晕半径不超过0.5，确保不会超出圆形边界
-                    float haloRadius = min(radius, 0.5);
-                    float halo = 1.0 - smoothstep(0.15, haloRadius, distanceToCenter);
-                    halo = pow(halo, 2.0); // 使光晕更柔和
-                    
-                    // 组合强度
-                    // 增加粒子基础亮度，但减少中心区域的过度叠加
-                    float strength = core + halo * 0.6;
-                    
-                    // 根据距离中心的距离，减少中心区域的强度叠加
-                    // 在中心区域（vDistance 小），降低强度以避免过度叠加
-                    float centerAttenuation = 1.0;
-                    if (vDistance < 1.0) {
-                        // 在中心区域，根据距离衰减强度，避免过度叠加
-                        centerAttenuation = 0.5 + vDistance * 0.5; // 从 0.5 到 1.0
-                    }
-                    
-                    // 使用可控制的发光强度，并应用中心区域衰减和随机亮度
-                    vec3 finalColor = vColor * strength * uGlowIntensity * centerAttenuation * vBrightness;
-                    
-                    // 根据恒星类型调整颜色（模拟不同年龄的恒星）
-                    float ageFactor = clamp(vDistance / 5.0, 0.0, 1.0);
-                    vec3 youngStarColor = vec3(0.9, 0.95, 1.0); // 蓝白色
-                    vec3 oldStarColor = vec3(1.0, 0.85, 0.7);   // 黄色
-                    vec3 starColor = mix(youngStarColor, oldStarColor, ageFactor);
-                    
-                    finalColor = mix(finalColor, finalColor * starColor, 0.15);
-                    
-                    // Alpha 值：核心完全不透明，光晕逐渐透明
-                    float alpha = core + halo * 0.4;
-                    alpha = clamp(alpha, 0.2, 1.0);
-                    
-                    // 云雾粒子：如果光晕大小明显大于基础光晕，增加不透明度
-                    // 判断是否为云雾粒子（光晕大小是基础光晕的2倍以上）
-                    if (radius > uHaloSize * 1.5) {
-                        // 云雾粒子：增加不透明度，使其更明显
-                        alpha = core + halo * 0.8; // 从0.4增加到0.8，使光晕更不透明
-                        alpha = clamp(alpha, 0.5, 1.0); // 最小alpha从0.2提高到0.5
-                    }
-                    
-                    gl_FragColor = vec4(finalColor, alpha);
-                }
-            `,
+      void main() {
+        // 计算到粒子中心的距离
+        vec2 center = vec2(0.5);
+        vec2 coord = gl_PointCoord - center;
+        float distanceToCenter = length(coord);
+        
+        // 小尺寸粒子做平滑衰减，减少远距闪烁
+        float sizeFade = vPointFade;
+        
+        // 使用屏幕导数做抗锯齿圆形遮罩，避免边缘闪烁
+        float edge = fwidth(distanceToCenter);
+        float circleMask = 1.0 - smoothstep(0.5 - edge, 0.5 + edge, distanceToCenter);
+        
+        // 核心亮度（中心最亮）
+        float core = 1.0 - smoothstep(0.0, 0.15, distanceToCenter);
+        
+        // 外圈光晕（更柔和的光晕效果）
+        float halo = 1.0 - smoothstep(0.15, 0.5, distanceToCenter);
+        halo = pow(halo, 2.0); // 使光晕更柔和
+        
+        // 组合强度
+        // 增加粒子基础亮度，但减少中心区域的过度叠加
+        float strength = (core + halo * 0.6) * circleMask * sizeFade;
+        
+        // 根据距离中心的距离，减少中心区域的强度叠加
+        // 在中心区域（vDistance 小），降低强度以避免过度叠加
+        float centerAttenuation = 1.0;
+        if (vDistance < 1.0) {
+          // 在中心区域，根据距离衰减强度，避免过度叠加
+          centerAttenuation = 0.5 + vDistance * 0.5; // 从 0.5 到 1.0
+        }
+        
+        // 使用可控制的发光强度，并应用中心区域衰减和随机亮度
+        vec3 finalColor = vColor * strength * uGlowIntensity * centerAttenuation * vBrightness;
+        
+        // 软阈值平滑：避免亮度在 Bloom 阈值附近跳变
+        // 对最终亮度做一次 soft-limit，减少高亮度的剧烈变化
+        float softThreshold = 0.8;
+        float smoothedIntensity = smoothstep(softThreshold, softThreshold + 0.1, dot(finalColor, vec3(0.299, 0.587, 0.114)));
+        finalColor = mix(finalColor * 0.5, finalColor, smoothedIntensity);
+        
+        // 根据恒星类型调整颜色（模拟不同年龄的恒星）
+        float ageFactor = clamp(vDistance / 5.0, 0.0, 1.0);
+        vec3 youngStarColor = vec3(0.9, 0.95, 1.0); // 蓝白色
+        vec3 oldStarColor = vec3(1.0, 0.85, 0.7);   // 黄色
+        vec3 starColor = mix(youngStarColor, oldStarColor, ageFactor);
+        
+        finalColor = mix(finalColor, finalColor * starColor, 0.15);
+        
+        // Alpha 值：核心完全不透明，光晕逐渐透明
+        float alpha = (core + halo * 0.4) * circleMask * sizeFade;
+        alpha = clamp(alpha, 0.0, 1.0);
+        
+        gl_FragColor = vec4(finalColor, alpha);
+      }
+      `,
+      extensions: {
+        derivatives: true
+      },
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      depthTest: false,
       vertexColors: true
     });
 
@@ -580,15 +574,7 @@ export class Galaxy {
     }
   }
 
-  /**
-   * 更新光晕大小
-   * @param {number} size - 光晕大小
-   */
-  setHaloSize(size) {
-    if (this.material) {
-      this.material.uniforms.uHaloSize.value = size;
-    }
-  }
+
 
   /**
    * 更新旋转方向
