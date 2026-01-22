@@ -152,6 +152,7 @@ class GalaxySimulation {
     this.createGalaxy();
     this.setupControls();
     this.setupDialogCloseOnClickOutside(); // 设置对话框点击外部关闭
+    this.hideLoadingScreen(); // 隐藏加载画面
     this.animate();
   }
 
@@ -1743,6 +1744,25 @@ class GalaxySimulation {
     ctx.fillText('0', 5, height - 5);
     ctx.textAlign = 'center';
     ctx.fillText(maxRadius.toFixed(1), width - 5, height - 5);
+  }
+
+  /**
+   * 隐藏加载画面
+   */
+  hideLoadingScreen() {
+    // 等待一帧确保渲染完成
+    requestAnimationFrame(() => {
+      const loadingScreen = document.getElementById('loading-screen');
+      if (loadingScreen) {
+        loadingScreen.classList.add('hidden');
+        // 动画完成后移除元素（可选）
+        setTimeout(() => {
+          if (loadingScreen.parentNode) {
+            loadingScreen.parentNode.removeChild(loadingScreen);
+          }
+        }, 500);
+      }
+    });
   }
 
   /**
