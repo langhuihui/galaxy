@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { Galaxy } from './galaxy.js';
+import { GalaxyWebGPU } from './galaxy-webgpu.js';
 import { CurveEditor } from './curveEditor.js';
 
 /**
@@ -23,11 +23,6 @@ class GalaxySimulation {
         viscosity: 0.0,
         insideColor: '#ffaa44',
         outsideColor: '#4488ff',
-        cloudRatio: 0.08,
-        cloudHaloMultiplier: 3.0,
-        randomBrightness: true,
-        brightnessRange: [0.6, 1.4],
-        rotationDirection: 1, // 1为顺时针，-1为逆时针
         
         // 极值范围
         rotationSpeedMin: 0,
@@ -78,6 +73,8 @@ class GalaxySimulation {
         this.particleSizeSlider = document.getElementById('particle-size');
         this.galaxyRadiusSlider = document.getElementById('galaxy-radius');
         this.randomnessSlider = document.getElementById('randomness');
+        this.rotationCurveCanvas = document.getElementById('rotation-curve-canvas');
+        this.densityCurveCanvas = document.getElementById('density-curve-canvas');
         this.rotationSpeedMinSlider = document.getElementById('rotation-speed-min');
         this.rotationSpeedMaxSlider = document.getElementById('rotation-speed-max');
         this.densityMinSlider = document.getElementById('density-min');
@@ -91,15 +88,6 @@ class GalaxySimulation {
         this.viscositySlider = document.getElementById('viscosity');
         this.insideColorInput = document.getElementById('inside-color');
         this.outsideColorInput = document.getElementById('outside-color');
-        this.cloudRatioSlider = document.getElementById('cloud-ratio');
-        this.cloudHaloMultiplierSlider = document.getElementById('cloud-halo-multiplier');
-        this.randomBrightnessCheckbox = document.getElementById('random-brightness');
-        this.brightnessMinSlider = document.getElementById('brightness-min');
-        this.brightnessMaxSlider = document.getElementById('brightness-max');
-        this.rotationDirectionCwBtn = document.getElementById('rotation-direction-cw');
-        this.rotationDirectionCcwBtn = document.getElementById('rotation-direction-ccw');
-        this.rotationCurveBtn = document.getElementById('rotation-curve-btn');
-        this.densityCurveBtn = document.getElementById('density-curve-btn');
         
         // 曲线编辑器
         this.rotationCurveEditor = null;
@@ -113,10 +101,6 @@ class GalaxySimulation {
         this.glowIntensityValue = document.getElementById('glow-intensity-value');
         this.haloSizeValue = document.getElementById('halo-size-value');
         this.viscosityValue = document.getElementById('viscosity-value');
-        this.cloudRatioValue = document.getElementById('cloud-ratio-value');
-        this.cloudHaloMultiplierValue = document.getElementById('cloud-halo-multiplier-value');
-        this.brightnessMinValue = document.getElementById('brightness-min-value');
-        this.brightnessMaxValue = document.getElementById('brightness-max-value');
         
         // 视角按钮
         this.viewTopBtn = document.getElementById('view-top');
@@ -127,19 +111,50 @@ class GalaxySimulation {
         this.importBtn = document.getElementById('import-params');
         this.importFileInput = document.getElementById('import-file');
         
-        this.init();
-        this.initCurveEditors(); // 初始化曲线编辑器
-        // 重新创建银河系，确保使用正确的曲线参数
-        this.createGalaxy();
-        this.setupControls();
-        this.setupDialogCloseOnClickOutside(); // 设置对话框点击外部关闭
-        this.animate();
+        // WebGPU 状态显示
+        this.rendererModeLabel = document.getElementById('renderer-mode-label');
+        this.rendererStatus = document.getElementById('renderer-status');
+        
+        // 强制使用 WebGPU
+        this.useWebGPU = true;
+        
+        // 异步初始化
+        this.init().then(() => {
+            this.initCurveEditors(); // 初始化曲线编辑器
+            // 重新创建银河系，确保使用正确的曲线参数
+            this.createGalaxy();
+            this.setupControls();
+            this.animate();
+        }).catch(error => {
+            console.error('初始化失败:', error);
+            this.showError(error.message || 'WebGPU 初始化失败', '无法创建 WebGPU 渲染器');
+        });
     }
 
     /**
-     * 初始化场景
+     * 显示错误消息
      */
-    init() {
+    showError(message, details = '') {
+        const errorDiv = document.getElementById('error-message');
+        const errorDetails = document.getElementById('error-details');
+        if (errorDiv && errorDetails) {
+            errorDetails.textContent = message + (details ? '\n详情: ' + details : '');
+            errorDiv.style.display = 'block';
+        } else {
+            console.error('错误:', message, details);
+            alert('WebGPU 初始化失败: ' + message);
+        }
+    }
+
+    /**
+     * 初始化场景（强制使用 WebGPU）
+     */
+    async init() {
+        // 检查基本环境支持
+        if (typeof window === 'undefined') {
+            throw new Error('此应用需要在浏览器环境中运行');
+        }
+        
         // 创建场景
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x000000);
@@ -153,26 +168,105 @@ class GalaxySimulation {
         this.camera.position.set(0, 5, 10);
         this.camera.lookAt(0, 0, 0);
 
-        // 创建渲染器
-        // 显式设置所有参数以确保与旧版本行为一致
-        // r182 中 alpha 默认值从 false 改为 true，这里显式设置为 false 以匹配旧版本
-        this.renderer = new THREE.WebGLRenderer({ 
-            antialias: true,
-            alpha: false,  // 显式设置为 false，匹配旧版本默认值
-            preserveDrawingBuffer: false,  // 显式设置默认值
-            powerPreference: "high-performance"  // 性能偏好
-        });
-        this.renderer.setSize(width, height);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        // 尝试不同的 tone mapping 设置以匹配 r160
-        // 提高 exposure 让粒子更亮，但通过着色器中的中心区域衰减来控制中心过亮
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 0.7;  // 提高到 0.7，让粒子更亮
-        // r160 默认是 SRGBColorSpace
-        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-        // 设置清除颜色为黑色（确保背景一致）
-        this.renderer.setClearColor(0x000000, 1.0);
-        container.appendChild(this.renderer.domElement);
+        // 辅助函数：带超时的 Promise
+        const withTimeout = (promise, timeoutMs = 5000) => {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('操作超时')), timeoutMs)
+                )
+            ]);
+        };
+        
+        // 手动检测 WebGPU 是否可用
+        const checkWebGPUSupport = async () => {
+            if (typeof navigator === 'undefined' || !navigator.gpu) {
+                return false;
+            }
+            
+            try {
+                let adapter = null;
+                try {
+                    adapter = await withTimeout(
+                        navigator.gpu.requestAdapter({
+                            powerPreference: "high-performance"
+                        }),
+                        3000
+                    );
+                    if (!adapter) {
+                        adapter = await withTimeout(
+                            navigator.gpu.requestAdapter({
+                                powerPreference: "low-power"
+                            }),
+                            3000
+                        );
+                    }
+                } catch (e) {
+                    console.warn('请求 WebGPU 适配器失败:', e.message || e);
+                    return false;
+                }
+                
+                if (adapter) {
+                    try {
+                        const device = await withTimeout(adapter.requestDevice(), 2000);
+                        if (device) {
+                            device.destroy();
+                            return true;
+                        }
+                    } catch (e) {
+                        console.warn('请求 WebGPU 设备失败:', e.message || e);
+                        return false;
+                    }
+                }
+                
+                return false;
+            } catch (error) {
+                console.warn('WebGPU 检测过程出错:', error.message || error);
+                return false;
+            }
+        };
+        
+        // 检测 WebGPU 支持
+        const webGPUSupported = await checkWebGPUSupport();
+        
+        if (!webGPUSupported) {
+            throw new Error('浏览器不支持 WebGPU。请使用支持 WebGPU 的浏览器（Chrome 113+, Edge 113+）');
+        }
+        
+        // 更新状态显示
+        if (this.rendererStatus) {
+            this.rendererStatus.textContent = '正在初始化 WebGPU...';
+            this.rendererStatus.style.color = '#fbbf24';
+        }
+        
+        // 创建 WebGPU 渲染器
+        try {
+            const { WebGPURenderer } = await import('three/webgpu');
+            
+            this.renderer = new WebGPURenderer({ 
+                antialias: true,
+                powerPreference: "high-performance"
+            });
+            
+            await withTimeout(this.renderer.init(), 5000);
+            
+            this.renderer.setSize(width, height);
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            this.renderer.toneMappingExposure = 1.2;
+            container.appendChild(this.renderer.domElement);
+            
+            // 更新状态显示
+            if (this.rendererStatus) {
+                this.rendererStatus.textContent = '使用 WebGPU 渲染';
+                this.rendererStatus.style.color = '#4ade80';
+            }
+            
+            console.log('WebGPU 渲染器初始化成功');
+        } catch (initError) {
+            console.error('WebGPU 渲染器初始化失败:', initError);
+            throw new Error('WebGPU 渲染器初始化失败: ' + (initError.message || initError));
+        }
 
         // 创建轨道控制器
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -181,10 +275,7 @@ class GalaxySimulation {
         this.controls.minDistance = 3;
         this.controls.maxDistance = 30;
 
-        // 创建银河系
-        this.createGalaxy();
-
-        // 设置后处理
+        // 设置后处理（WebGPU 模式下不使用 EffectComposer）
         this.setupPostProcessing();
 
         // 窗口大小调整
@@ -192,102 +283,38 @@ class GalaxySimulation {
     }
 
     /**
-     * 初始化曲线编辑器（在对话框中）
+     * 初始化曲线编辑器
      */
     initCurveEditors() {
-        // 旋转速度曲线编辑器（在对话框中初始化）
-        const rotationCanvas = document.getElementById('rotation-curve-canvas-dialog');
-        if (rotationCanvas) {
-            this.rotationCurveEditor = new CurveEditor('rotation-curve-canvas-dialog', {
-                controlPoints: GalaxySimulation.DEFAULT_PARAMS.rotationCurvePoints,
-                onUpdate: (curveFn) => {
-                    if (this.galaxy) {
-                        this.galaxy.parameters.rotationCurveFn = curveFn;
-                        // 重建银河系以应用新曲线
-                        clearTimeout(this.rebuildTimeout);
-                        this.rebuildTimeout = setTimeout(() => {
-                            this.createGalaxy();
-                        }, 300);
-                    }
+        // 旋转速度曲线编辑器（使用默认参数配置）
+        this.rotationCurveEditor = new CurveEditor('rotation-curve-canvas', {
+            controlPoints: GalaxySimulation.DEFAULT_PARAMS.rotationCurvePoints,
+            onUpdate: (curveFn) => {
+                if (this.galaxy) {
+                    this.galaxy.parameters.rotationCurveFn = curveFn;
+                    // 重建银河系以应用新曲线
+                    clearTimeout(this.rebuildTimeout);
+                    this.rebuildTimeout = setTimeout(() => {
+                        this.createGalaxy();
+                    }, 300);
                 }
-            });
-        }
+            }
+        });
         
-        // 密度分布曲线编辑器（在对话框中初始化）
-        const densityCanvas = document.getElementById('density-curve-canvas-dialog');
-        if (densityCanvas) {
-            this.densityCurveEditor = new CurveEditor('density-curve-canvas-dialog', {
-                controlPoints: GalaxySimulation.DEFAULT_PARAMS.densityCurvePoints,
-                onUpdate: (curveFn) => {
-                    if (this.galaxy) {
-                        this.galaxy.parameters.densityCurveFn = curveFn;
-                        // 重建银河系以应用新曲线
-                        clearTimeout(this.rebuildTimeout);
-                        this.rebuildTimeout = setTimeout(() => {
-                            this.createGalaxy();
-                        }, 300);
-                    }
+        // 密度分布曲线编辑器（使用默认参数配置）
+        this.densityCurveEditor = new CurveEditor('density-curve-canvas', {
+            controlPoints: GalaxySimulation.DEFAULT_PARAMS.densityCurvePoints,
+            onUpdate: (curveFn) => {
+                if (this.galaxy) {
+                    this.galaxy.parameters.densityCurveFn = curveFn;
+                    // 重建银河系以应用新曲线
+                    clearTimeout(this.rebuildTimeout);
+                    this.rebuildTimeout = setTimeout(() => {
+                        this.createGalaxy();
+                    }, 300);
                 }
-            });
-        }
-    }
-
-    /**
-     * 显示曲线编辑对话框
-     * @param {string} type - 'rotation' 或 'density'
-     */
-    showCurveDialog(type) {
-        const dialogId = type === 'rotation' ? 'rotation-curve-dialog' : 'density-curve-dialog';
-        const dialog = document.getElementById(dialogId);
-        if (dialog) {
-            dialog.style.display = 'flex';
-            
-            // 重新初始化编辑器以适应对话框大小
-            // 需要等待对话框显示后，canvas 才能获取正确的尺寸
-            setTimeout(() => {
-                if (type === 'rotation' && this.rotationCurveEditor) {
-                    this.rotationCurveEditor.init();
-                } else if (type === 'density' && this.densityCurveEditor) {
-                    this.densityCurveEditor.init();
-                }
-            }, 100);
-        }
-    }
-
-    /**
-     * 关闭曲线编辑对话框
-     * @param {string} type - 'rotation' 或 'density'
-     */
-    closeCurveDialog(type) {
-        const dialogId = type === 'rotation' ? 'rotation-curve-dialog' : 'density-curve-dialog';
-        const dialog = document.getElementById(dialogId);
-        if (dialog) {
-            dialog.style.display = 'none';
-        }
-    }
-
-    /**
-     * 点击对话框外部关闭对话框
-     */
-    setupDialogCloseOnClickOutside() {
-        const rotationDialog = document.getElementById('rotation-curve-dialog');
-        const densityDialog = document.getElementById('density-curve-dialog');
-        
-        if (rotationDialog) {
-            rotationDialog.addEventListener('click', (e) => {
-                if (e.target === rotationDialog) {
-                    this.closeCurveDialog('rotation');
-                }
-            });
-        }
-        
-        if (densityDialog) {
-            densityDialog.addEventListener('click', (e) => {
-                if (e.target === densityDialog) {
-                    this.closeCurveDialog('density');
-                }
-            });
-        }
+            }
+        });
     }
 
     /**
@@ -313,18 +340,6 @@ class GalaxySimulation {
         const viscosity = parseFloat(this.viscositySlider?.value || params.viscosity);
         const insideColor = this.insideColorInput?.value || params.insideColor;
         const outsideColor = this.outsideColorInput?.value || params.outsideColor;
-        const cloudRatio = parseFloat(this.cloudRatioSlider?.value || params.cloudRatio);
-        const cloudHaloMultiplier = parseFloat(this.cloudHaloMultiplierSlider?.value || params.cloudHaloMultiplier);
-        const randomBrightness = this.randomBrightnessCheckbox?.checked !== undefined ? this.randomBrightnessCheckbox.checked : params.randomBrightness;
-        const brightnessMin = parseFloat(this.brightnessMinSlider?.value || params.brightnessRange[0]);
-        const brightnessMax = parseFloat(this.brightnessMaxSlider?.value || params.brightnessRange[1]);
-        // 获取旋转方向：从按钮状态获取，默认顺时针
-        let rotationDirection = params.rotationDirection;
-        if (this.rotationDirectionCwBtn?.classList.contains('active')) {
-            rotationDirection = 1;
-        } else if (this.rotationDirectionCcwBtn?.classList.contains('active')) {
-            rotationDirection = -1;
-        }
         
         // 旋臂参数
         const armCount = parseInt(this.armCountSlider?.value || params.armCount);
@@ -360,7 +375,7 @@ class GalaxySimulation {
             };
         }
         
-        this.galaxy = new Galaxy({
+        this.galaxy = new GalaxyWebGPU({
             count: particleCount,
             size: particleSize,
             radius: galaxyRadius,
@@ -381,38 +396,33 @@ class GalaxySimulation {
             rotationSpeedMin: rotationSpeedMin,
             rotationSpeedMax: rotationSpeedMax,
             densityMin: densityMin,
-            densityMax: densityMax,
-            cloudRatio: cloudRatio,
-            cloudHaloMultiplier: cloudHaloMultiplier,
-            randomBrightness: randomBrightness,
-            brightnessRange: [brightnessMin, brightnessMax],
-            rotationDirection: rotationDirection
+            densityMax: densityMax
         });
 
-        // 同步生成银河系（WebGL 模式）
-        this.galaxy.generate();
-        this.scene.add(this.galaxy.getPoints());
+        // 异步生成银河系（NodeMaterial 需要异步加载）
+        this.galaxy.generate().then(() => {
+            // 生成完成后添加到场景
+            if (this.galaxy) {
+                const points = this.galaxy.getPoints();
+                if (points) {
+                    this.scene.add(points);
+                } else {
+                    console.warn('银河系生成完成，但 getPoints() 返回 null');
+                }
+            }
+        }).catch(error => {
+            console.error('生成银河系时出错:', error);
+        });
     }
 
     /**
      * 设置后处理效果
      */
     setupPostProcessing() {
-        this.composer = new EffectComposer(this.renderer);
-        
-        // 渲染通道
-        const renderPass = new RenderPass(this.scene, this.camera);
-        this.composer.addPass(renderPass);
-
-        // 泛光效果
-        // 进一步降低 Bloom 参数以匹配 r160 的视觉效果
-        const bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(window.innerWidth, window.innerHeight),
-            0.7,  // 强度：进一步降低到 0.7
-            0.3,  // 半径：从 0.4 降低到 0.3
-            0.95  // 阈值：进一步提高到 0.95，只有最亮的区域才产生泛光
-        );
-        this.composer.addPass(bloomPass);
+        // WebGPU 模式下，EffectComposer 不支持
+        // 后处理效果（Bloom）已在材质层面实现
+        console.info('WebGPU 渲染器已启用。后处理效果（Bloom）已在材质层面实现，无需 EffectComposer。');
+        this.composer = null;
     }
 
     /**
@@ -431,14 +441,6 @@ class GalaxySimulation {
             viscosity: parseFloat(this.viscositySlider.value),
             insideColor: this.insideColorInput.value,
             outsideColor: this.outsideColorInput.value,
-            cloudRatio: parseFloat(this.cloudRatioSlider.value),
-            cloudHaloMultiplier: parseFloat(this.cloudHaloMultiplierSlider.value),
-            randomBrightness: this.randomBrightnessCheckbox.checked,
-            brightnessRange: [
-                parseFloat(this.brightnessMinSlider.value),
-                parseFloat(this.brightnessMaxSlider.value)
-            ],
-            rotationDirection: this.rotationDirectionCwBtn?.classList.contains('active') ? 1 : -1,
             
             // 曲线参数
             rotationSpeedMin: parseFloat(this.rotationSpeedMinSlider.value),
@@ -481,7 +483,7 @@ class GalaxySimulation {
                 if (params.rotationSpeed !== undefined) {
                     this.rotationSpeedSlider.value = params.rotationSpeed;
                     this.rotationSpeedMultiplier = parseFloat(params.rotationSpeed);
-                    this.rotationSpeedValue.textContent = params.rotationSpeed.toFixed(2);
+                    this.rotationSpeedValue.textContent = params.rotationSpeed.toFixed(1);
                 }
                 
                 if (params.particleCount !== undefined) {
@@ -525,54 +527,6 @@ class GalaxySimulation {
                 
                 if (params.outsideColor !== undefined) {
                     this.outsideColorInput.value = params.outsideColor;
-                }
-                
-                // 设置云雾和亮度参数
-                if (params.cloudRatio !== undefined) {
-                    this.cloudRatioSlider.value = params.cloudRatio;
-                    if (this.cloudRatioValue) {
-                        this.cloudRatioValue.textContent = (params.cloudRatio * 100).toFixed(1) + '%';
-                    }
-                }
-                
-                if (params.cloudHaloMultiplier !== undefined) {
-                    this.cloudHaloMultiplierSlider.value = params.cloudHaloMultiplier;
-                    if (this.cloudHaloMultiplierValue) {
-                        this.cloudHaloMultiplierValue.textContent = params.cloudHaloMultiplier.toFixed(1);
-                    }
-                }
-                
-                if (params.randomBrightness !== undefined) {
-                    this.randomBrightnessCheckbox.checked = params.randomBrightness;
-                }
-                
-                if (params.brightnessRange !== undefined) {
-                    if (params.brightnessRange[0] !== undefined) {
-                        this.brightnessMinSlider.value = params.brightnessRange[0];
-                        if (this.brightnessMinValue) {
-                            this.brightnessMinValue.textContent = params.brightnessRange[0].toFixed(2);
-                        }
-                    }
-                    if (params.brightnessRange[1] !== undefined) {
-                        this.brightnessMaxSlider.value = params.brightnessRange[1];
-                        if (this.brightnessMaxValue) {
-                            this.brightnessMaxValue.textContent = params.brightnessRange[1].toFixed(2);
-                        }
-                    }
-                }
-                
-                if (params.rotationDirection !== undefined) {
-                    if (params.rotationDirection === 1) {
-                        if (this.rotationDirectionCwBtn) this.rotationDirectionCwBtn.classList.add('active');
-                        if (this.rotationDirectionCcwBtn) this.rotationDirectionCcwBtn.classList.remove('active');
-                    } else {
-                        if (this.rotationDirectionCcwBtn) this.rotationDirectionCcwBtn.classList.add('active');
-                        if (this.rotationDirectionCwBtn) this.rotationDirectionCwBtn.classList.remove('active');
-                    }
-                    // 更新银河系旋转方向
-                    if (this.galaxy) {
-                        this.galaxy.setRotationDirection(params.rotationDirection);
-                    }
                 }
                 
                 // 设置曲线参数
@@ -647,13 +601,13 @@ class GalaxySimulation {
             // 设置初始值
             this.rotationSpeedSlider.value = this.rotationSpeedMultiplier;
             if (this.rotationSpeedValue) {
-                this.rotationSpeedValue.textContent = this.rotationSpeedMultiplier.toFixed(2);
+                this.rotationSpeedValue.textContent = this.rotationSpeedMultiplier.toFixed(1);
             }
             
             this.rotationSpeedSlider.addEventListener('input', (e) => {
                 this.rotationSpeedMultiplier = parseFloat(e.target.value);
                 if (this.rotationSpeedValue) {
-                    this.rotationSpeedValue.textContent = this.rotationSpeedMultiplier.toFixed(2);
+                    this.rotationSpeedValue.textContent = this.rotationSpeedMultiplier.toFixed(1);
                 }
             });
         }
@@ -903,87 +857,6 @@ class GalaxySimulation {
             });
         }
 
-        // 云雾比例控制（需要重建）
-        if (this.cloudRatioSlider) {
-            this.cloudRatioSlider.addEventListener('input', (e) => {
-                const ratio = parseFloat(e.target.value);
-                if (this.cloudRatioValue) {
-                    this.cloudRatioValue.textContent = (ratio * 100).toFixed(1) + '%';
-                }
-                clearTimeout(this.rebuildTimeout);
-                this.rebuildTimeout = setTimeout(() => {
-                    this.createGalaxy();
-                }, 300);
-            });
-        }
-
-        // 云雾光晕倍数控制（需要重建）
-        if (this.cloudHaloMultiplierSlider) {
-            this.cloudHaloMultiplierSlider.addEventListener('input', (e) => {
-                const multiplier = parseFloat(e.target.value);
-                if (this.cloudHaloMultiplierValue) {
-                    this.cloudHaloMultiplierValue.textContent = multiplier.toFixed(1);
-                }
-                clearTimeout(this.rebuildTimeout);
-                this.rebuildTimeout = setTimeout(() => {
-                    this.createGalaxy();
-                }, 300);
-            });
-        }
-
-        // 随机亮度开关控制（需要重建）
-        if (this.randomBrightnessCheckbox) {
-            this.randomBrightnessCheckbox.addEventListener('change', (e) => {
-                clearTimeout(this.rebuildTimeout);
-                this.rebuildTimeout = setTimeout(() => {
-                    this.createGalaxy();
-                }, 300);
-            });
-        }
-
-        // 亮度范围控制（需要重建）
-        if (this.brightnessMinSlider) {
-            this.brightnessMinSlider.addEventListener('input', (e) => {
-                const min = parseFloat(e.target.value);
-                if (this.brightnessMinValue) {
-                    this.brightnessMinValue.textContent = min.toFixed(2);
-                }
-                clearTimeout(this.rebuildTimeout);
-                this.rebuildTimeout = setTimeout(() => {
-                    this.createGalaxy();
-                }, 300);
-            });
-        }
-
-        if (this.brightnessMaxSlider) {
-            this.brightnessMaxSlider.addEventListener('input', (e) => {
-                const max = parseFloat(e.target.value);
-                if (this.brightnessMaxValue) {
-                    this.brightnessMaxValue.textContent = max.toFixed(2);
-                }
-                clearTimeout(this.rebuildTimeout);
-                this.rebuildTimeout = setTimeout(() => {
-                    this.createGalaxy();
-                }, 300);
-            });
-        }
-
-        // 旋转方向控制（实时更新，不需要重建）
-        // 按钮点击事件在 HTML 的 setRotationDirection 函数中处理
-
-        // 曲线编辑器按钮
-        if (this.rotationCurveBtn) {
-            this.rotationCurveBtn.addEventListener('click', () => {
-                this.showCurveDialog('rotation');
-            });
-        }
-
-        if (this.densityCurveBtn) {
-            this.densityCurveBtn.addEventListener('click', () => {
-                this.showCurveDialog('density');
-            });
-        }
-
         // 导出参数按钮
         if (this.exportBtn) {
             this.exportBtn.addEventListener('click', () => {
@@ -1178,48 +1051,6 @@ class GalaxySimulation {
         }
         if (this.outsideColorInput) {
             this.outsideColorInput.value = params.outsideColor;
-        }
-
-        // 重置云雾和亮度参数
-        if (this.cloudRatioSlider) {
-            this.cloudRatioSlider.value = params.cloudRatio;
-        }
-        if (this.cloudRatioValue) {
-            this.cloudRatioValue.textContent = (params.cloudRatio * 100).toFixed(1) + '%';
-        }
-        
-        if (this.cloudHaloMultiplierSlider) {
-            this.cloudHaloMultiplierSlider.value = params.cloudHaloMultiplier;
-        }
-        if (this.cloudHaloMultiplierValue) {
-            this.cloudHaloMultiplierValue.textContent = params.cloudHaloMultiplier.toFixed(1);
-        }
-        
-        if (this.randomBrightnessCheckbox) {
-            this.randomBrightnessCheckbox.checked = params.randomBrightness;
-        }
-        
-        if (this.brightnessMinSlider) {
-            this.brightnessMinSlider.value = params.brightnessRange[0];
-        }
-        if (this.brightnessMinValue) {
-            this.brightnessMinValue.textContent = params.brightnessRange[0].toFixed(2);
-        }
-        
-        if (this.brightnessMaxSlider) {
-            this.brightnessMaxSlider.value = params.brightnessRange[1];
-        }
-        if (this.brightnessMaxValue) {
-            this.brightnessMaxValue.textContent = params.brightnessRange[1].toFixed(2);
-        }
-
-        // 重置旋转方向
-        if (params.rotationDirection === 1) {
-            if (this.rotationDirectionCwBtn) this.rotationDirectionCwBtn.classList.add('active');
-            if (this.rotationDirectionCcwBtn) this.rotationDirectionCcwBtn.classList.remove('active');
-        } else {
-            if (this.rotationDirectionCcwBtn) this.rotationDirectionCcwBtn.classList.add('active');
-            if (this.rotationDirectionCwBtn) this.rotationDirectionCwBtn.classList.remove('active');
         }
 
         // 重建银河系
@@ -1470,5 +1301,5 @@ class GalaxySimulation {
 
 // 启动应用
 window.addEventListener('DOMContentLoaded', () => {
-    window.galaxySimulation = new GalaxySimulation();
+    new GalaxySimulation();
 });

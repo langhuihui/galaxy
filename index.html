@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>银河系模拟 - Galaxy Simulation</title>
+    <title>银河系模拟 (WebGL) - Galaxy Simulation</title>
     <style>
         * {
             margin: 0;
@@ -25,19 +25,41 @@
         #controls {
             position: absolute;
             top: 20px;
-            left: 20px;
             right: 20px;
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 20px;
             z-index: 100;
             pointer-events: none;
         }
 
-        #left-panel,
         #right-panel {
             pointer-events: auto;
+            transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+        }
+
+        #right-panel.hidden {
+            transform: translateX(calc(100% + 20px));
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #toggle-panel-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 101;
+            padding: 10px 15px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s;
+        }
+
+        #toggle-panel-btn:hover {
+            background: rgba(0, 0, 0, 0.8);
+            border-color: rgba(255, 255, 255, 0.3);
         }
 
         .control-panel {
@@ -46,11 +68,86 @@
             padding: 20px;
             border-radius: 8px;
             font-size: 14px;
-            min-width: 280px;
-            max-width: 320px;
+            min-width: 300px;
+            max-width: 350px;
             backdrop-filter: blur(10px);
             max-height: calc(100vh - 40px);
             overflow-y: auto;
+        }
+
+        .control-section {
+            margin-bottom: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .control-section-header {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .control-section-header:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .control-section-header h4 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .control-section-toggle {
+            font-size: 18px;
+            transition: transform 0.2s;
+        }
+
+        .control-section.collapsed .control-section-toggle {
+            transform: rotate(-90deg);
+        }
+
+        .control-section-content {
+            padding: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+        }
+
+        .control-section:not(.collapsed) .control-section-content {
+            max-height: 2000px;
+            padding: 15px;
+        }
+
+        .direction-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .direction-buttons button {
+            flex: 1;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .direction-buttons button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .direction-buttons button.active {
+            background: rgba(100, 150, 255, 0.3);
+            border-color: rgba(100, 150, 255, 0.5);
         }
 
         .control-panel h3 {
@@ -155,199 +252,330 @@
         }
 
         #info {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 12px;
-            z-index: 100;
+            display: none;
+        }
+
+        .curve-dialog {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
+        .curve-dialog-content {
+            background: rgba(20, 20, 30, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            min-width: 600px;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            color: white;
+        }
+
+        .curve-dialog-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .curve-dialog-header h3 {
+            margin: 0;
+        }
+
+        .curve-dialog-close {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            border-radius: 4px;
+        }
+
+        .curve-dialog-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .curve-dialog-footer {
+            margin-top: 20px;
+            text-align: right;
+        }
+
+        select {
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
     <div id="canvas-container"></div>
+    <button id="toggle-panel-btn">显示参数</button>
     <div id="controls">
-        <!-- 左侧面板：基础参数 -->
-        <div class="control-panel" id="left-panel">
-            <h3>基础参数</h3>
-        
-        <div class="control-group">
-            <label>
-                旋转速度
-                <span class="value" id="rotation-speed-value">1.0</span>
-            </label>
-            <input type="range" id="rotation-speed" min="0" max="3" step="0.1" value="1.0">
-        </div>
-        
-        <div class="control-group">
-            <label>
-                粒子数量
-                <span class="value" id="particle-count-value">50000</span>
-            </label>
-            <input type="range" id="particle-count" min="10000" max="100000" step="5000" value="50000">
-        </div>
-        
-        <div class="control-group">
-            <label>
-                粒子大小
-                <span class="value" id="particle-size-value">4.0</span>
-            </label>
-            <input type="range" id="particle-size" min="0.01" max="10.0" step="0.01" value="4.0">
-        </div>
-        
-        <div class="control-group">
-            <label>
-                发光强度
-                <span class="value" id="glow-intensity-value">8.0</span>
-            </label>
-            <input type="range" id="glow-intensity" min="0" max="50" step="0.1" value="8.0">
-        </div>
-        
-        <div class="control-group">
-            <label>
-                光晕大小
-                <span class="value" id="halo-size-value">0.6</span>
-            </label>
-            <input type="range" id="halo-size" min="0.1" max="1.0" step="0.05" value="0.6">
-        </div>
-        
-        <div class="control-group">
-            <label>
-                星系半径
-                <span class="value" id="galaxy-radius-value">6.5</span>
-            </label>
-            <input type="range" id="galaxy-radius" min="2" max="10" step="0.5" value="6.5">
-        </div>
-        
-        <div class="control-group">
-            <label>
-                随机性
-                <span class="value" id="randomness-value">0.3</span>
-            </label>
-            <input type="range" id="randomness" min="0" max="1" step="0.05" value="0.3">
-        </div>
-        
-            <div class="control-group">
-                <label>
-                    中心颜色
-                    <input type="color" id="inside-color" value="#ffaa44">
-                </label>
-            </div>
-            
-            <div class="control-group">
-                <label>
-                    边缘颜色
-                    <input type="color" id="outside-color" value="#4488ff">
-                </label>
-            </div>
-            
-            <div class="control-group">
-                <label>
-                    粘滞效果
-                    <span class="value" id="viscosity-value">0.0</span>
-                </label>
-                <input type="range" id="viscosity" min="0" max="1" step="0.05" value="0.0">
-                <small style="font-size: 10px; color: #888;">旋臂区域速度减慢，维持稳定</small>
-            </div>
-            
-            <div class="control-group">
-                <label>视角预设</label>
-                <div class="button-group">
-                    <button id="view-top">俯视</button>
-                    <button id="view-side">侧视</button>
-                    <button id="view-45">45度</button>
-                </div>
-            </div>
-            
-            <div class="control-group">
-                <div class="button-group">
-                    <button id="reset-params">重置参数</button>
-                    <button id="export-params">导出参数</button>
-                    <button id="import-params">导入参数</button>
-                    <input type="file" id="import-file" accept=".json" style="display: none;">
-                </div>
-            </div>
-        </div>
-
-        <!-- 右侧面板：曲线和旋臂 -->
+        <!-- 右侧面板：所有参数 -->
         <div class="control-panel" id="right-panel">
-            <h3>曲线与旋臂</h3>
+            <h3>参数控制</h3>
             
-            <div class="control-group">
-                <label style="font-weight: bold; margin-bottom: 10px;">旋转速度曲线</label>
-                <div class="curve-editor" id="rotation-curve-editor">
-                    <canvas id="rotation-curve-canvas"></canvas>
+            <!-- 基础参数 -->
+            <div class="control-section" data-section="basic">
+                <div class="control-section-header" onclick="toggleSection('basic')">
+                    <h4>基础参数</h4>
+                    <span class="control-section-toggle">▼</span>
                 </div>
-                <div style="margin-top: 10px;">
-                    <div style="margin-bottom: 8px;">
-                        <label style="font-size: 11px;">
-                            最小速度 (km/s)
-                            <span class="value" id="rotation-speed-min-value">0</span>
+                <div class="control-section-content">
+                    <div class="control-group">
+                        <label>
+                            旋转速度
+                            <span class="value" id="rotation-speed-value">1.0</span>
                         </label>
-                        <input type="range" id="rotation-speed-min" min="0" max="200" step="10" value="0">
+                        <input type="range" id="rotation-speed" min="0" max="3" step="0.01" value="1.0">
                     </div>
-                    <div>
-                        <label style="font-size: 11px;">
-                            最大速度 (km/s)
-                            <span class="value" id="rotation-speed-max-value">150</span>
+                    
+                    <div class="control-group">
+                        <label>
+                            旋转方向
                         </label>
-                        <input type="range" id="rotation-speed-max" min="100" max="1000" step="10" value="150">
+                        <div class="direction-buttons">
+                            <button id="rotation-direction-cw" class="active" onclick="setRotationDirection(1)">顺时针</button>
+                            <button id="rotation-direction-ccw" onclick="setRotationDirection(-1)">逆时针</button>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            粒子数量
+                            <span class="value" id="particle-count-value">50000</span>
+                        </label>
+                        <input type="range" id="particle-count" min="10000" max="100000" step="5000" value="50000">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            粒子大小
+                            <span class="value" id="particle-size-value">4.0</span>
+                        </label>
+                        <input type="range" id="particle-size" min="0.01" max="10.0" step="0.01" value="4.0">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            星系半径
+                            <span class="value" id="galaxy-radius-value">6.5</span>
+                        </label>
+                        <input type="range" id="galaxy-radius" min="2" max="10" step="0.5" value="6.5">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            随机性
+                            <span class="value" id="randomness-value">0.3</span>
+                        </label>
+                        <input type="range" id="randomness" min="0" max="1" step="0.05" value="0.3">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            发光强度
+                            <span class="value" id="glow-intensity-value">8.0</span>
+                        </label>
+                        <input type="range" id="glow-intensity" min="0" max="50" step="0.1" value="8.0">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            光晕大小
+                            <span class="value" id="halo-size-value">0.6</span>
+                        </label>
+                        <input type="range" id="halo-size" min="0.1" max="1.0" step="0.05" value="0.6">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            中心颜色
+                            <input type="color" id="inside-color" value="#ffaa44">
+                        </label>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            边缘颜色
+                            <input type="color" id="outside-color" value="#4488ff">
+                        </label>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            云雾比例
+                            <span class="value" id="cloud-ratio-value">8.0%</span>
+                        </label>
+                        <input type="range" id="cloud-ratio" min="0" max="0.2" step="0.01" value="0.08">
+                        <small style="font-size: 10px; color: #888;">随机选择粒子作为云雾（大号光晕）</small>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            云雾光晕倍数
+                            <span class="value" id="cloud-halo-multiplier-value">3.0</span>
+                        </label>
+                        <input type="range" id="cloud-halo-multiplier" min="1.5" max="6.0" step="0.1" value="3.0">
+                        <small style="font-size: 10px; color: #888;">云雾粒子的光晕大小倍数</small>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            <input type="checkbox" id="random-brightness" checked style="margin-right: 5px;">
+                            随机亮度
+                        </label>
+                        <div style="margin-top: 8px;">
+                            <label style="font-size: 11px;">
+                                最小亮度
+                                <span class="value" id="brightness-min-value">0.60</span>
+                            </label>
+                            <input type="range" id="brightness-min" min="0.3" max="1.0" step="0.05" value="0.6">
+                        </div>
+                        <div>
+                            <label style="font-size: 11px;">
+                                最大亮度
+                                <span class="value" id="brightness-max-value">1.40</span>
+                            </label>
+                            <input type="range" id="brightness-max" min="1.0" max="2.0" step="0.05" value="1.4">
+                        </div>
                     </div>
                 </div>
             </div>
-            
-            <div class="control-group">
-                <label style="font-weight: bold; margin-bottom: 10px;">密度分布曲线</label>
-                <div class="curve-editor" id="density-curve-editor">
-                    <canvas id="density-curve-canvas"></canvas>
+
+            <!-- 曲线设置 -->
+            <div class="control-section collapsed" data-section="curve">
+                <div class="control-section-header" onclick="toggleSection('curve')">
+                    <h4>曲线设置</h4>
+                    <span class="control-section-toggle">▼</span>
                 </div>
-                <div style="margin-top: 10px;">
-                    <div style="margin-bottom: 8px;">
-                        <label style="font-size: 11px;">
-                            最小密度
-                            <span class="value" id="density-min-value">0.0</span>
-                        </label>
-                        <input type="range" id="density-min" min="0" max="1" step="0.1" value="0.0">
+                <div class="control-section-content">
+                    <div class="control-group">
+                        <label style="font-weight: bold; margin-bottom: 10px;">旋转速度曲线</label>
+                        <button id="rotation-curve-btn" style="width: 100%; margin-bottom: 10px;">编辑旋转速度曲线</button>
+                        <div style="margin-top: 10px;">
+                            <div style="margin-bottom: 8px;">
+                                <label style="font-size: 11px;">
+                                    最小速度 (km/s)
+                                    <span class="value" id="rotation-speed-min-value">0</span>
+                                </label>
+                                <input type="range" id="rotation-speed-min" min="0" max="200" step="10" value="0">
+                            </div>
+                            <div>
+                                <label style="font-size: 11px;">
+                                    最大速度 (km/s)
+                                    <span class="value" id="rotation-speed-max-value">150</span>
+                                </label>
+                                <input type="range" id="rotation-speed-max" min="100" max="1000" step="10" value="150">
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label style="font-size: 11px;">
-                            最大密度
-                            <span class="value" id="density-max-value">2.0</span>
-                        </label>
-                        <input type="range" id="density-max" min="0" max="10" step="0.5" value="2.0">
+                    
+                    <div class="control-group" style="margin-top: 20px;">
+                        <label style="font-weight: bold; margin-bottom: 10px;">密度分布曲线</label>
+                        <button id="density-curve-btn" style="width: 100%; margin-bottom: 10px;">编辑密度分布曲线</button>
+                        <div style="margin-top: 10px;">
+                            <div style="margin-bottom: 8px;">
+                                <label style="font-size: 11px;">
+                                    最小密度
+                                    <span class="value" id="density-min-value">0.0</span>
+                                </label>
+                                <input type="range" id="density-min" min="0" max="1" step="0.1" value="0.0">
+                            </div>
+                            <div>
+                                <label style="font-size: 11px;">
+                                    最大密度
+                                    <span class="value" id="density-max-value">2.0</span>
+                                </label>
+                                <input type="range" id="density-max" min="0" max="10" step="0.5" value="2.0">
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            
-            <div class="control-group">
-                <label style="font-weight: bold; margin-bottom: 10px;">旋臂设置（密度波）</label>
-                <div style="margin-bottom: 10px;">
-                    <label style="font-size: 11px;">
-                        旋臂数量
-                        <span class="value" id="arm-count-value">3</span>
-                    </label>
-                    <input type="range" id="arm-count" min="1" max="6" step="1" value="3">
+
+            <!-- 旋臂设置 -->
+            <div class="control-section collapsed" data-section="arm">
+                <div class="control-section-header" onclick="toggleSection('arm')">
+                    <h4>旋臂设置</h4>
+                    <span class="control-section-toggle">▼</span>
                 </div>
-                <div style="margin-bottom: 10px;">
-                    <label style="font-size: 11px;">
-                        旋臂紧密度
-                        <span class="value" id="arm-tightness-value">1.0</span>
-                    </label>
-                    <input type="range" id="arm-tightness" min="0.5" max="3.0" step="0.1" value="1.0">
+                <div class="control-section-content">
+                    <div class="control-group">
+                        <label style="font-size: 11px;">
+                            旋臂数量
+                            <span class="value" id="arm-count-value">3</span>
+                        </label>
+                        <input type="range" id="arm-count" min="1" max="6" step="1" value="3">
+                    </div>
+                    <div class="control-group">
+                        <label style="font-size: 11px;">
+                            旋臂紧密度
+                            <span class="value" id="arm-tightness-value">1.0</span>
+                        </label>
+                        <input type="range" id="arm-tightness" min="0.5" max="3.0" step="0.1" value="1.0">
+                    </div>
+                    <div class="control-group">
+                        <label style="font-size: 11px;">
+                            旋臂密度增强
+                            <span class="value" id="arm-density-value">2.0</span>
+                        </label>
+                        <input type="range" id="arm-density" min="1.0" max="5.0" step="0.1" value="2.0">
+                    </div>
+                    <div class="control-group">
+                        <label style="font-size: 11px;">
+                            旋臂宽度
+                            <span class="value" id="arm-width-value">0.3</span>
+                        </label>
+                        <input type="range" id="arm-width" min="0.1" max="1.0" step="0.05" value="0.3">
+                    </div>
+                    <div class="control-group">
+                        <label style="font-size: 11px;">
+                            粘滞效果
+                            <span class="value" id="viscosity-value">0.0</span>
+                        </label>
+                        <input type="range" id="viscosity" min="0" max="1" step="0.05" value="0.0">
+                        <small style="font-size: 10px; color: #888;">旋臂区域速度减慢，维持稳定</small>
+                    </div>
                 </div>
-                <div style="margin-bottom: 10px;">
-                    <label style="font-size: 11px;">
-                        旋臂密度增强
-                        <span class="value" id="arm-density-value">2.0</span>
-                    </label>
-                    <input type="range" id="arm-density" min="1.0" max="5.0" step="0.1" value="2.0">
+            </div>
+
+            <!-- 视角与操作 -->
+            <div class="control-section collapsed" data-section="view">
+                <div class="control-section-header" onclick="toggleSection('view')">
+                    <h4>视角与操作</h4>
+                    <span class="control-section-toggle">▼</span>
                 </div>
-                <div>
-                    <label style="font-size: 11px;">
-                        旋臂宽度
-                        <span class="value" id="arm-width-value">0.3</span>
-                    </label>
-                    <input type="range" id="arm-width" min="0.1" max="1.0" step="0.05" value="0.3">
+                <div class="control-section-content">
+                    <div class="control-group">
+                        <label>视角预设</label>
+                        <div class="button-group">
+                            <button id="view-top">俯视</button>
+                            <button id="view-side">侧视</button>
+                            <button id="view-45">45度</button>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="button-group">
+                            <button id="reset-params">重置参数</button>
+                            <button id="export-params">导出参数</button>
+                            <button id="import-params">导入参数</button>
+                            <input type="file" id="import-file" accept=".json" style="display: none;">
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -355,6 +583,97 @@
     <div id="info">
         使用鼠标拖拽旋转视角 | 滚轮缩放
     </div>
+
+    <!-- 旋转速度曲线编辑对话框 -->
+    <div id="rotation-curve-dialog" class="curve-dialog" style="display: none;">
+        <div class="curve-dialog-content">
+            <div class="curve-dialog-header">
+                <h3>编辑旋转速度曲线</h3>
+                <button class="curve-dialog-close" onclick="window.galaxySimulation?.closeCurveDialog('rotation')">×</button>
+            </div>
+            <div class="curve-editor" style="width: 100%; height: 400px; margin: 20px 0;">
+                <canvas id="rotation-curve-canvas-dialog"></canvas>
+            </div>
+            <div class="curve-dialog-footer">
+                <button onclick="window.galaxySimulation?.closeCurveDialog('rotation')">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 密度分布曲线编辑对话框 -->
+    <div id="density-curve-dialog" class="curve-dialog" style="display: none;">
+        <div class="curve-dialog-content">
+            <div class="curve-dialog-header">
+                <h3>编辑密度分布曲线</h3>
+                <button class="curve-dialog-close" onclick="window.galaxySimulation?.closeCurveDialog('density')">×</button>
+            </div>
+            <div class="curve-editor" style="width: 100%; height: 400px; margin: 20px 0;">
+                <canvas id="density-curve-canvas-dialog"></canvas>
+            </div>
+            <div class="curve-dialog-footer">
+                <button onclick="window.galaxySimulation?.closeCurveDialog('density')">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 手风琴模式：一次只展开一个分类
+        function toggleSection(sectionName) {
+            const allSections = document.querySelectorAll('.control-section');
+            const targetSection = document.querySelector(`[data-section="${sectionName}"]`);
+            
+            allSections.forEach(section => {
+                if (section === targetSection) {
+                    // 切换目标分类
+                    section.classList.toggle('collapsed');
+                } else {
+                    // 折叠其他分类
+                    section.classList.add('collapsed');
+                }
+            });
+        }
+
+        // 切换面板显示/隐藏
+        function togglePanel() {
+            const panel = document.getElementById('right-panel');
+            const btn = document.getElementById('toggle-panel-btn');
+            
+            if (panel.classList.contains('hidden')) {
+                panel.classList.remove('hidden');
+                btn.textContent = '隐藏参数';
+            } else {
+                panel.classList.add('hidden');
+                btn.textContent = '显示参数';
+            }
+        }
+
+        // 设置旋转方向
+        function setRotationDirection(direction) {
+            const cwBtn = document.getElementById('rotation-direction-cw');
+            const ccwBtn = document.getElementById('rotation-direction-ccw');
+            
+            if (direction === 1) {
+                cwBtn.classList.add('active');
+                ccwBtn.classList.remove('active');
+            } else {
+                ccwBtn.classList.add('active');
+                cwBtn.classList.remove('active');
+            }
+            
+            // 更新银河系旋转方向
+            if (window.galaxySimulation && window.galaxySimulation.galaxy) {
+                window.galaxySimulation.galaxy.setRotationDirection(direction);
+            }
+        }
+
+        // 初始化：绑定切换面板按钮
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggleBtn = document.getElementById('toggle-panel-btn');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', togglePanel);
+            }
+        });
+    </script>
     <script type="module" src="/src/main.js"></script>
 </body>
 </html>
