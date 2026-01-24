@@ -5,6 +5,8 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { Galaxy } from './galaxy.js';
 import { CurveEditor } from './curveEditor.js';
+import { StarfieldTextureGenerator } from './starfield.js';
+import { create3DStarfield, create3DNebula } from './Starfield3D.js';
 
 /**
  * 银河系模拟主应用
@@ -33,7 +35,14 @@ class GalaxySimulation {
     // Bloom 参数
     bloomStrength: 0.5,
     bloomRadius: 0.4,
-    bloomThreshold: 0.85,
+    bloomThreshold: 0.4,
+
+    // 星空参数
+    starfieldEnabled: true,
+    starfieldStarCount: 5000,
+    starfieldBrightness: 1.0,
+    starfieldIncludeNebulae: true,
+    nebulaOpacity: 0.6,
 
     // 极值范围
     rotationSpeedMin: 0,
@@ -70,6 +79,8 @@ class GalaxySimulation {
     this.controls = null;
     this.composer = null;
     this.bloomPass = null;
+    this.skybox = null;
+    this.nebula = null;
 
     // 银河系对象
     this.galaxy = null;
@@ -110,6 +121,13 @@ class GalaxySimulation {
     this.rotationCurveBtn = document.getElementById('rotation-curve-btn');
     this.densityCurveBtn = document.getElementById('density-curve-btn');
 
+    // 星空参数 UI 元素
+    this.starfieldEnabledCheckbox = document.getElementById('starfield-enabled');
+    this.starfieldStarCountSlider = document.getElementById('starfield-star-count');
+    this.starfieldBrightnessSlider = document.getElementById('starfield-brightness');
+    this.starfieldNebulaeCheckbox = document.getElementById('starfield-nebulae');
+    this.nebulaOpacitySlider = document.getElementById('nebula-opacity');
+
     // Bloom 参数 UI 元素
     this.bloomStrengthSlider = document.getElementById('bloom-strength');
     this.bloomRadiusSlider = document.getElementById('bloom-radius');
@@ -134,6 +152,9 @@ class GalaxySimulation {
     this.brightnessMaxValue = document.getElementById('brightness-max-value');
     this.sizeMinValue = document.getElementById('size-min-value');
     this.sizeMaxValue = document.getElementById('size-max-value');
+    this.starfieldStarCountValue = document.getElementById('starfield-star-count-value');
+    this.starfieldBrightnessValue = document.getElementById('starfield-brightness-value');
+    this.nebulaOpacityValue = document.getElementById('nebula-opacity-value');
 
     // 视角按钮
     this.viewTopBtn = document.getElementById('view-top');
@@ -169,7 +190,7 @@ class GalaxySimulation {
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 100);
+    this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
     this.camera.position.set(0, 5, 10);
     this.camera.lookAt(0, 0, 0);
 
@@ -199,7 +220,10 @@ class GalaxySimulation {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
     this.controls.minDistance = 3;
-    this.controls.maxDistance = 30;
+    this.controls.maxDistance = 100;
+
+    // 创建星空天空盒子
+    this.createSkybox();
 
     // 创建银河系
     this.createGalaxy();
@@ -418,6 +442,105 @@ class GalaxySimulation {
   }
 
   /**
+   * 创建星空背景
+   */
+  createSkybox() {
+    const params = GalaxySimulation.DEFAULT_PARAMS;
+
+    // 创建 3D 星空
+    this.skybox = create3DStarfield({
+      starCount: params.starfieldStarCount,
+      radius: 150,
+      starSize: 1.0,
+      brightness: params.starfieldBrightness,
+      starColor: 0xffffff
+    });
+
+    this.scene.add(this.skybox);
+
+    console.log('3D Starfield created with star count:', params.starfieldStarCount);
+
+    // 创建星云
+    if (params.starfieldIncludeNebulae) {
+      this.createNebula();
+    }
+  }
+
+  /**
+   * 创建星云
+   */
+  createNebula() {
+    const params = GalaxySimulation.DEFAULT_PARAMS;
+
+    this.nebula = create3DNebula({
+      nebulaCount: 8,
+      radius: 120,
+      opacity: params.nebulaOpacity
+    });
+
+    this.scene.add(this.nebula);
+
+    console.log('3D Nebula created with texture');
+  }
+
+  /**
+   * 更新星空背景
+   */
+  updateSkybox() {
+    const params = GalaxySimulation.DEFAULT_PARAMS;
+
+    // 移除旧星空
+    if (this.skybox) {
+      this.scene.remove(this.skybox);
+      if (this.skybox.geometry) {
+        this.skybox.geometry.dispose();
+      }
+      if (this.skybox.material) {
+        this.skybox.material.dispose();
+      }
+    }
+
+    // 创建新 3D 星空
+    this.skybox = create3DStarfield({
+      starCount: params.starfieldStarCount,
+      radius: 150,
+      starSize: 1.0,
+      brightness: params.starfieldBrightness,
+      starColor: 0xffffff
+    });
+
+    this.scene.add(this.skybox);
+
+    console.log('3D Starfield updated with star count:', params.starfieldStarCount);
+
+    // 更新星云
+    this.updateNebula();
+  }
+
+  /**
+   * 更新星云
+   */
+  updateNebula() {
+    const params = GalaxySimulation.DEFAULT_PARAMS;
+
+    // 移除旧星云
+    if (this.nebula) {
+      this.scene.remove(this.nebula);
+
+      // 销毁所有子对象
+      this.nebula.children.forEach(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+      });
+    }
+
+    // 创建新星云
+    if (params.starfieldIncludeNebulae) {
+      this.createNebula();
+    }
+  }
+
+  /**
    * 设置后处理效果
    */
   setupPostProcessing() {
@@ -433,7 +556,7 @@ class GalaxySimulation {
       new THREE.Vector2(window.innerWidth, window.innerHeight),
       0.5,  // 强度：从 0.7 降低到 0.5，避免过度放大亚像素抖动
       0.4,  // 半径：从 0.3 提高到 0.4，让泛光更平滑
-      0.85  // 阈值：从 0.95 降低到 0.85，减少亮度在阈值附近跳变
+      0.4   // 阈值：降低到 0.4，让暗淡的星星也能显示
     );
     this.composer.addPass(this.bloomPass);
   }
@@ -485,7 +608,14 @@ class GalaxySimulation {
 
       // 曲线控制点
       rotationCurvePoints: this.rotationCurveEditor.getControlPoints(),
-      densityCurvePoints: this.densityCurveEditor.getControlPoints()
+      densityCurvePoints: this.densityCurveEditor.getControlPoints(),
+
+      // 星空参数
+      starfieldEnabled: this.starfieldEnabledCheckbox ? this.starfieldEnabledCheckbox.checked : GalaxySimulation.DEFAULT_PARAMS.starfieldEnabled,
+      starfieldStarCount: this.starfieldStarCountSlider ? parseInt(this.starfieldStarCountSlider.value) : GalaxySimulation.DEFAULT_PARAMS.starfieldStarCount,
+      starfieldBrightness: this.starfieldBrightnessSlider ? parseFloat(this.starfieldBrightnessSlider.value) : GalaxySimulation.DEFAULT_PARAMS.starfieldBrightness,
+      starfieldIncludeNebulae: this.starfieldNebulaeCheckbox ? this.starfieldNebulaeCheckbox.checked : GalaxySimulation.DEFAULT_PARAMS.starfieldIncludeNebulae,
+      nebulaOpacity: this.nebulaOpacitySlider ? parseFloat(this.nebulaOpacitySlider.value) : GalaxySimulation.DEFAULT_PARAMS.nebulaOpacity
     };
 
     // 创建下载链接
@@ -686,6 +816,60 @@ class GalaxySimulation {
           this.densityCurveEditor.setControlPoints(params.densityCurvePoints);
         }
 
+        // 设置星空参数
+        if (params.starfieldEnabled !== undefined) {
+          if (this.starfieldEnabledCheckbox) {
+            this.starfieldEnabledCheckbox.checked = params.starfieldEnabled;
+            GalaxySimulation.DEFAULT_PARAMS.starfieldEnabled = params.starfieldEnabled;
+            if (this.skybox) {
+              this.skybox.visible = params.starfieldEnabled;
+            }
+            if (this.nebula) {
+              this.nebula.visible = params.starfieldEnabled;
+            }
+          }
+        }
+
+        if (params.starfieldStarCount !== undefined) {
+          if (this.starfieldStarCountSlider) {
+            this.starfieldStarCountSlider.value = params.starfieldStarCount;
+            if (this.starfieldStarCountValue) {
+              this.starfieldStarCountValue.textContent = params.starfieldStarCount;
+            }
+            GalaxySimulation.DEFAULT_PARAMS.starfieldStarCount = params.starfieldStarCount;
+          }
+        }
+
+        if (params.starfieldBrightness !== undefined) {
+          if (this.starfieldBrightnessSlider) {
+            this.starfieldBrightnessSlider.value = params.starfieldBrightness;
+            if (this.starfieldBrightnessValue) {
+              this.starfieldBrightnessValue.textContent = params.starfieldBrightness.toFixed(1);
+            }
+            GalaxySimulation.DEFAULT_PARAMS.starfieldBrightness = params.starfieldBrightness;
+          }
+        }
+
+        if (params.starfieldIncludeNebulae !== undefined) {
+          if (this.starfieldNebulaeCheckbox) {
+            this.starfieldNebulaeCheckbox.checked = params.starfieldIncludeNebulae;
+            GalaxySimulation.DEFAULT_PARAMS.starfieldIncludeNebulae = params.starfieldIncludeNebulae;
+          }
+        }
+
+        if (params.nebulaOpacity !== undefined) {
+          if (this.nebulaOpacitySlider) {
+            this.nebulaOpacitySlider.value = params.nebulaOpacity;
+            if (this.nebulaOpacityValue) {
+              this.nebulaOpacityValue.textContent = params.nebulaOpacity.toFixed(2);
+            }
+            GalaxySimulation.DEFAULT_PARAMS.nebulaOpacity = params.nebulaOpacity;
+          }
+        }
+
+        // 更新天空盒子
+        this.updateSkybox();
+
         // 重建银河系
         this.createGalaxy();
 
@@ -814,6 +998,23 @@ class GalaxySimulation {
       this.viscositySlider.value = params.viscosity;
     }
 
+    // 星空参数
+    if (this.starfieldEnabledCheckbox) {
+      this.starfieldEnabledCheckbox.checked = params.starfieldEnabled;
+    }
+    if (this.starfieldStarCountSlider) {
+      this.starfieldStarCountSlider.value = params.starfieldStarCount;
+    }
+    if (this.starfieldBrightnessSlider) {
+      this.starfieldBrightnessSlider.value = params.starfieldBrightness;
+    }
+    if (this.starfieldNebulaeCheckbox) {
+      this.starfieldNebulaeCheckbox.checked = params.starfieldIncludeNebulae;
+    }
+    if (this.nebulaOpacitySlider) {
+      this.nebulaOpacitySlider.value = params.nebulaOpacity;
+    }
+
     // 更新所有值显示
     this.updateValueDisplays();
   }
@@ -865,6 +1066,15 @@ class GalaxySimulation {
     }
     if (this.cloudHaloMultiplierValue) {
       this.cloudHaloMultiplierValue.textContent = parseFloat(this.cloudHaloMultiplierSlider.value).toFixed(1);
+    }
+    if (this.starfieldStarCountValue) {
+      this.starfieldStarCountValue.textContent = parseInt(this.starfieldStarCountSlider.value);
+    }
+    if (this.starfieldBrightnessValue) {
+      this.starfieldBrightnessValue.textContent = parseFloat(this.starfieldBrightnessSlider.value).toFixed(1);
+    }
+    if (this.nebulaOpacityValue) {
+      this.nebulaOpacityValue.textContent = parseFloat(this.nebulaOpacitySlider.value).toFixed(2);
     }
   }
 
@@ -1291,6 +1501,93 @@ class GalaxySimulation {
       });
     }
 
+    // 星空控制
+    if (this.starfieldEnabledCheckbox) {
+      this.starfieldEnabledCheckbox.checked = GalaxySimulation.DEFAULT_PARAMS.starfieldEnabled;
+      this.starfieldEnabledCheckbox.addEventListener('change', (e) => {
+        GalaxySimulation.DEFAULT_PARAMS.starfieldEnabled = e.target.checked;
+        if (this.skybox) {
+          this.skybox.visible = e.target.checked;
+        }
+        if (this.nebula) {
+          this.nebula.visible = e.target.checked;
+        }
+      });
+    }
+
+    if (this.starfieldStarCountSlider) {
+      this.starfieldStarCountSlider.value = GalaxySimulation.DEFAULT_PARAMS.starfieldStarCount;
+      if (this.starfieldStarCountValue) {
+        this.starfieldStarCountValue.textContent = GalaxySimulation.DEFAULT_PARAMS.starfieldStarCount;
+      }
+      this.starfieldStarCountSlider.addEventListener('input', (e) => {
+        const count = parseInt(e.target.value);
+        if (this.starfieldStarCountValue) {
+          this.starfieldStarCountValue.textContent = count;
+        }
+        GalaxySimulation.DEFAULT_PARAMS.starfieldStarCount = count;
+        clearTimeout(this.rebuildTimeout);
+        this.rebuildTimeout = setTimeout(() => {
+          this.updateSkybox();
+        }, 300);
+      });
+    }
+
+    if (this.starfieldBrightnessSlider) {
+      this.starfieldBrightnessSlider.value = GalaxySimulation.DEFAULT_PARAMS.starfieldBrightness;
+      if (this.starfieldBrightnessValue) {
+        this.starfieldBrightnessValue.textContent = GalaxySimulation.DEFAULT_PARAMS.starfieldBrightness.toFixed(1);
+      }
+      this.starfieldBrightnessSlider.addEventListener('input', (e) => {
+        const brightness = parseFloat(e.target.value);
+        if (this.starfieldBrightnessValue) {
+          this.starfieldBrightnessValue.textContent = brightness.toFixed(1);
+        }
+        GalaxySimulation.DEFAULT_PARAMS.starfieldBrightness = brightness;
+
+        // 实时更新星星亮度
+        if (this.skybox && this.skybox.material && this.skybox.material.uniforms) {
+          this.skybox.material.uniforms.brightness.value = brightness;
+        }
+
+        clearTimeout(this.rebuildTimeout);
+        this.rebuildTimeout = setTimeout(() => {
+          this.updateSkybox();
+        }, 300);
+      });
+    }
+
+    if (this.starfieldNebulaeCheckbox) {
+      this.starfieldNebulaeCheckbox.checked = GalaxySimulation.DEFAULT_PARAMS.starfieldIncludeNebulae;
+      this.starfieldNebulaeCheckbox.addEventListener('change', (e) => {
+        GalaxySimulation.DEFAULT_PARAMS.starfieldIncludeNebulae = e.target.checked;
+        this.updateSkybox();
+      });
+    }
+
+    if (this.nebulaOpacitySlider) {
+      this.nebulaOpacitySlider.value = GalaxySimulation.DEFAULT_PARAMS.nebulaOpacity;
+      if (this.nebulaOpacityValue) {
+        this.nebulaOpacityValue.textContent = GalaxySimulation.DEFAULT_PARAMS.nebulaOpacity.toFixed(2);
+      }
+      this.nebulaOpacitySlider.addEventListener('input', (e) => {
+        const opacity = parseFloat(e.target.value);
+        if (this.nebulaOpacityValue) {
+          this.nebulaOpacityValue.textContent = opacity.toFixed(2);
+        }
+        GalaxySimulation.DEFAULT_PARAMS.nebulaOpacity = opacity;
+
+        // 实时更新星云透明度
+        if (this.nebula) {
+          this.nebula.children.forEach(child => {
+            if (child.material && child.material.uniforms) {
+              child.material.uniforms.opacity.value = opacity;
+            }
+          });
+        }
+      });
+    }
+
     // 视角预设按钮
     if (this.viewTopBtn) {
       this.viewTopBtn.addEventListener('click', () => {
@@ -1521,6 +1818,35 @@ class GalaxySimulation {
       if (this.rotationDirectionCcwBtn) this.rotationDirectionCcwBtn.classList.add('active');
       if (this.rotationDirectionCwBtn) this.rotationDirectionCwBtn.classList.remove('active');
     }
+
+    // 重置星空参数
+    if (this.starfieldEnabledCheckbox) {
+      this.starfieldEnabledCheckbox.checked = params.starfieldEnabled;
+    }
+    if (this.starfieldStarCountSlider) {
+      this.starfieldStarCountSlider.value = params.starfieldStarCount;
+    }
+    if (this.starfieldStarCountValue) {
+      this.starfieldStarCountValue.textContent = params.starfieldStarCount;
+    }
+    if (this.starfieldBrightnessSlider) {
+      this.starfieldBrightnessSlider.value = params.starfieldBrightness;
+    }
+    if (this.starfieldBrightnessValue) {
+      this.starfieldBrightnessValue.textContent = params.starfieldBrightness.toFixed(1);
+    }
+    if (this.starfieldNebulaeCheckbox) {
+      this.starfieldNebulaeCheckbox.checked = params.starfieldIncludeNebulae;
+    }
+    if (this.nebulaOpacitySlider) {
+      this.nebulaOpacitySlider.value = params.nebulaOpacity;
+    }
+    if (this.nebulaOpacityValue) {
+      this.nebulaOpacityValue.textContent = params.nebulaOpacity.toFixed(2);
+    }
+
+    // 更新天空盒子
+    this.updateSkybox();
 
     // 重建银河系
     this.createGalaxy();

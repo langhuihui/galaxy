@@ -557,6 +557,53 @@
                 </div>
             </div>
 
+            <!-- 星空背景 -->
+            <div class="control-section collapsed" data-section="starfield">
+                <div class="control-section-header" onclick="toggleSection('starfield')">
+                    <h4>星空背景</h4>
+                    <span class="control-section-toggle">▼</span>
+                </div>
+                <div class="control-section-content">
+                    <div class="control-group">
+                        <label>
+                            <input type="checkbox" id="starfield-enabled" style="margin-right: 5px;" checked>
+                            启用星空
+                        </label>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            星星数量
+                            <span class="value" id="starfield-star-count-value">5000</span>
+                        </label>
+                        <input type="range" id="starfield-star-count" min="1000" max="20000" step="500" value="5000">
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            星星亮度
+                            <span class="value" id="starfield-brightness-value">1.0</span>
+                        </label>
+                        <input type="range" id="starfield-brightness" min="0.1" max="2.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <input type="checkbox" id="starfield-nebulae" style="margin-right: 5px;" checked>
+                            显示星云
+                        </label>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            星云透明度
+                            <span class="value" id="nebula-opacity-value">0.6</span>
+                        </label>
+                        <input type="range" id="nebula-opacity" min="0.1" max="1.0" step="0.1" value="0.6">
+                    </div>
+                </div>
+            </div>
+
             <!-- 曲线设置 -->
             <div class="control-section collapsed" data-section="curve">
                 <div class="control-section-header" onclick="toggleSection('curve')">

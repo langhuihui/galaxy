@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>星空测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #000;
+        }
+        canvas {
+            display: block;
+            margin: 20px auto;
+            border: 1px solid #333;
+        }
+        h1 {
+            text-align: center;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <h1>程序化星空测试</h1>
+    <canvas id="starfield" width="1024" height="1024"></canvas>
+
+    <script>
+        const canvas = document.getElementById('starfield');
+        const ctx = canvas.getContext('2d');
+        const size = 1024;
+        const starCount = 5000;
+
+        // 填充深色背景
+        const gradient = ctx.createRadialGradient(
+            size / 2, size / 2, 0,
+            size / 2, size / 2, size / 2
+        );
+        gradient.addColorStop(0, '#0a0a1a');
+        gradient.addColorStop(0.5, '#050510');
+        gradient.addColorStop(1, '#000005');
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, size, size);
+
+        // 绘制星星
+        for (let i = 0; i < starCount; i++) {
+            const x = Math.random() * size;
+            const y = Math.random() * size;
+
+            const starType = Math.random();
+            let radius, brightness;
+
+            if (starType < 0.6) {
+                radius = 1.5 + Math.random() * 1.5;
+                brightness = 0.5 + Math.random() * 0.5;
+            } else if (starType < 0.9) {
+                radius = 2 + Math.random() * 2;
+                brightness = 0.7 + Math.random() * 0.3;
+            } else {
+                radius = 3 + Math.random() * 4;
+                brightness = 0.8 + Math.random() * 0.2;
+            }
+
+            const starGradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+            starGradient.addColorStop(0, `rgba(255, 255, 255, ${brightness})`);
+            starGradient.addColorStop(0.3, `rgba(255, 255, 255, ${brightness * 0.5})`);
+            starGradient.addColorStop(1, 'transparent');
+
+            ctx.fillStyle = starGradient;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        console.log('星空生成完成，共', starCount, '颗星星');
+    </script>
+</body>
+</html>

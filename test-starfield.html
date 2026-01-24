@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试星空纹理</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            font-family: Arial, sans-serif;
+        }
+        .canvas-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+        canvas {
+            border: 2px solid #4a4a6a;
+            border-radius: 8px;
+        }
+        h1 {
+            text-align: center;
+            color: #fff;
+            margin-bottom: 20px;
+        }
+        .info {
+            text-align: center;
+            color: #aaa;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>星空纹理生成测试</h1>
+    <div class="info">测试程序化生成的星空纹理</div>
+    <div class="canvas-container" id="container"></div>
+
+    <script type="module">
+        import { StarfieldTextureGenerator } from './src/starfield.js';
+
+        const generator = new StarfieldTextureGenerator();
+
+        // 生成不同的测试纹理
+        const testConfigs = [
+            { starCount: 1000, brightness: 0.5, includeNebulae: false, label: '稀疏星空 (1000星)' },
+            { starCount: 5000, brightness: 1.0, includeNebulae: false, label: '标准星空 (5000星)' },
+            { starCount: 10000, brightness: 1.0, includeNebulae: false, label: '密集星空 (10000星)' },
+            { starCount: 5000, brightness: 1.0, includeNebulae: true, label: '星空+星云' },
+            { starCount: 10000, brightness: 1.5, includeNebulae: true, label: '高亮星空+星云' }
+        ];
+
+        const container = document.getElementById('container');
+
+        testConfigs.forEach(config => {
+            const wrapper = document.createElement('div');
+            wrapper.style.textAlign = 'center';
+
+            const label = document.createElement('p');
+            label.textContent = config.label;
+            label.style.color = '#fff';
+            label.style.marginBottom = '10px';
+
+            const texture = generator.generateTexture(config);
+            const canvas = texture.image;
+
+            canvas.style.width = '300px';
+            canvas.style.height = '300px';
+
+            wrapper.appendChild(label);
+            wrapper.appendChild(canvas);
+            container.appendChild(wrapper);
+        });
+    </script>
+</body>
+</html>
